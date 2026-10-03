@@ -1,0 +1,14 @@
+# The Remotion demo video is kept out of this repository
+branches-demo-video/
+
+# Local tool caches and editor/agent config
+.cache/
+.claude/
+
+# Dependencies, builds and secrets (each app's own .gitignore covers these too)
+node_modules/
+.next/
+out/
+.env*
+*.pem
+.DS_Store

@@ -1,0 +1,158 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Primer primitives: size, typography and the light + dark functional themes */
+@import "@primer/primitives/dist/css/base/size/size.css";
+@import "@primer/primitives/dist/css/base/typography/typography.css";
+@import "@primer/primitives/dist/css/functional/size/border.css";
+@import "@primer/primitives/dist/css/functional/size/radius.css";
+@import "@primer/primitives/dist/css/functional/size/size.css";
+@import "@primer/primitives/dist/css/functional/typography/typography.css";
+@import "@primer/primitives/dist/css/functional/themes/light.css";
+@import "@primer/primitives/dist/css/functional/themes/dark.css";
+
+@custom-variant dark (&:where([data-color-mode="dark"], [data-color-mode="dark"] *));
+
+@theme inline {
+  --font-sans: var(--fontStack-sansSerif);
+  --font-mono: var(--fontStack-monospace);
+  --font-heading: var(--fontStack-sansSerif);
+
+  /* shadcn semantic slots → Primer tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: var(--borderRadius-small);
+  --radius-md: var(--borderRadius-medium);
+  --radius-lg: var(--borderRadius-large);
+  --radius-xl: var(--borderRadius-large);
+  --radius-2xl: var(--borderRadius-large);
+
+  /* Primer functional tokens as Tailwind colours (bg-canvas-subtle, text-fg-muted, …) */
+  --color-fg-default: var(--fgColor-default);
+  --color-fg-muted: var(--fgColor-muted);
+  --color-fg-subtle: var(--fgColor-disabled);
+  --color-fg-accent: var(--fgColor-accent);
+  --color-fg-success: var(--fgColor-success);
+  --color-fg-done: var(--fgColor-done);
+  --color-fg-danger: var(--fgColor-danger);
+  --color-fg-attention: var(--fgColor-attention);
+  --color-fg-on-emphasis: var(--fgColor-onEmphasis);
+  --color-canvas: var(--bgColor-default);
+  --color-canvas-subtle: var(--bgColor-muted);
+  --color-canvas-inset: var(--bgColor-inset);
+  --color-canvas-emphasis: var(--bgColor-emphasis);
+  --color-border-default: var(--borderColor-default);
+  --color-border-muted: var(--borderColor-muted);
+  --color-border-strong: var(--borderColor-emphasis);
+  --color-accent-subtle: var(--bgColor-accent-muted);
+  --color-accent-muted: var(--borderColor-accent-muted);
+  --color-accent-emphasis: var(--borderColor-accent-emphasis);
+  --color-neutral-muted: var(--bgColor-neutral-muted);
+  --color-control-hover: var(--control-transparent-bgColor-hover);
+  --color-control-track: var(--controlTrack-bgColor-rest);
+  --color-control-track-hover: var(--controlTrack-bgColor-hover);
+  --color-done-subtle: var(--bgColor-done-muted);
+  --color-danger-subtle: var(--bgColor-danger-muted);
+  --color-attention-subtle: var(--bgColor-attention-muted);
+  --color-attention-muted: var(--borderColor-attention-muted);
+  --color-underline-active: var(--underlineNav-borderColor-active);
+
+  --shadow-resting: var(--shadow-resting-small);
+  --shadow-floating: var(--shadow-floating-small);
+  --shadow-floating-lg: var(--shadow-floating-medium);
+
+  --animate-node-in: node-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-view-in: view-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-panel-in: panel-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-fade-in: fade-in 0.3s ease backwards;
+  --animate-skel: skel 1.4s ease-in-out infinite;
+}
+
+:root {
+  --background: var(--bgColor-default);
+  --foreground: var(--fgColor-default);
+  --card: var(--bgColor-default);
+  --card-foreground: var(--fgColor-default);
+  --popover: var(--overlay-bgColor);
+  --popover-foreground: var(--fgColor-default);
+  --primary: var(--button-primary-bgColor-rest);
+  --primary-foreground: var(--button-primary-fgColor-rest);
+  --secondary: var(--button-default-bgColor-rest);
+  --secondary-foreground: var(--button-default-fgColor-rest);
+  --muted: var(--bgColor-muted);
+  --muted-foreground: var(--fgColor-muted);
+  --accent: var(--control-transparent-bgColor-hover);
+  --accent-foreground: var(--fgColor-default);
+  --destructive: var(--fgColor-danger);
+  --border: var(--borderColor-default);
+  --input: var(--control-borderColor-rest);
+  --ring: var(--focus-outlineColor);
+  --radius: var(--borderRadius-medium);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: light;
+  }
+  html[data-color-mode="dark"] {
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    html[data-color-mode="auto"] {
+      color-scheme: dark;
+    }
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: var(--text-body-size-medium);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: var(--fgColor-accent);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  input::placeholder {
+    color: var(--control-fgColor-placeholder);
+  }
+}
+
+@keyframes wireflow { to { stroke-dashoffset: -20; } }
+@keyframes node-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes wire-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes panel-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@keyframes view-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes ping-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fgColor-accent) 45%, transparent), var(--shadow-floating-small); }
+  100% { box-shadow: 0 0 0 12px transparent, var(--shadow-floating-small); }
+}
+@keyframes skel { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

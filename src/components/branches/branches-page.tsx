@@ -8,7 +8,7 @@ import type { Branch, RepoGraph } from "@/lib/types"
 import { isActive, isStale, relativeTime } from "@/lib/branch-utils"
 import { resolveRef } from "@/lib/github-url"
 import { usePrefs, useRepoStore } from "@/lib/use-repo-store"
-import { Button } from "@/components/ui/button"
+import { OpenRepoButton } from "@/components/open-repo-dialog"
 import { RepoHeader } from "@/components/repo-header"
 import { ListView } from "./list-view"
 import { NewBranchDialog } from "./new-branch-dialog"
@@ -197,7 +197,7 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
       <main className="mx-auto box-border w-full max-w-[1344px] px-4 pt-6 pb-16 md:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl leading-9 font-normal">Branches</h1>
-          <Button onClick={() => openNew()}>New branch</Button>
+          <OpenRepoButton />
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 border-b border-border-muted">

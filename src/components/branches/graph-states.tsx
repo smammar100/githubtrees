@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { OpenRepoButton } from "@/components/open-repo-dialog"
 import { RepoHeader } from "@/components/repo-header"
 import { cn } from "@/lib/utils"
 import { UnderlineTabs } from "./primitives"
@@ -13,7 +14,7 @@ function Shell({ owner, repo, children }: { owner: string; repo: string; childre
       <main className="mx-auto box-border w-full max-w-[1344px] px-4 pt-6 pb-16 md:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl leading-9 font-normal">Branches</h1>
-          <Button disabled>New branch</Button>
+          <OpenRepoButton />
         </div>
         <div className="mt-6 border-b border-border-muted">
           <UnderlineTabs tabs={[["overview", "Overview"], ["active", "Active"], ["stale", "Stale"], ["all", "All"]]} value="overview" />

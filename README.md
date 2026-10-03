@@ -47,6 +47,15 @@ Nothing is ever written to GitHub. These are saved in this browser's localStorag
 
 Links such as *Open PR*, *Compare*, *New pull request*, *View commits* and *Activity* open the real pages on github.com.
 
+## Performance
+
+Lighthouse on the live site (median of repeated runs): **94 mobile, 94 desktop**.
+
+- **Edge-cached HTML.** The data is public and identical for every visitor, so Netlify's edge serves each page and refreshes it in the background (`next.config.ts`), varying on the query string so every shared link has its own entry.
+- **No loading fallback.** React batches the reveal of streamed content, so a route `loading.tsx` painted a skeleton first even for cached pages. Without it the HTML is the page; the controls that open a new repository show their own progress instead.
+- **A trimmed Primer theme.** `npm run theme` (`scripts/primer-theme.mjs`) keeps only the 142 tokens the app uses from the 959-token colorblind themes, cutting the stylesheet from 236 KB to 75 KB, small enough to inline.
+- **Less to hydrate.** The repository header is a Server Component with three client islands, and the list view's code loads only when it's shown.
+
 ## Deploying to Netlify
 
 `netlify.toml` sets the build (`npm run build`, Node 22) and declares Netlify's Next.js runtime (`@netlify/plugin-nextjs`). Leave the base directory empty. Under **Site configuration → Environment variables**, add `GITHUB_TOKEN`. A fine-grained token with read-only access to public repositories is enough. Without it, the site is limited to the anonymous REST fallback, which shares one rate limit across Netlify's servers.

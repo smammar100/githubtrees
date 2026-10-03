@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   AlertIcon,
   CheckCircleFillIcon,
@@ -34,6 +34,41 @@ const EASE = "cubic-bezier(.2,.8,.2,1)"
 const CONTROL = "flex h-(--control-medium-size) items-center gap-2 rounded-md border px-(--control-medium-paddingInline-condensed) text-sm whitespace-nowrap shadow-resting"
 const controlBorder = (state: "rest" | "active" | "danger") =>
   state === "danger" ? "border-(--borderColor-danger-emphasis)" : state === "active" ? "border-accent-emphasis" : "border-(--control-borderColor-rest)"
+/** Width of the details panel (w-[340px]); keyboard focus keeps cards clear of it. */
+const PANEL_W = 340
+const TREE_HINT_ID = "branch-tree-keyboard-hint"
+
+/** ARIA tree-item attributes shared by branch cards and "+N more" items. */
+type TreeItemProps = {
+  role: "treeitem"
+  "aria-level": number
+  "aria-setsize": number
+  "aria-posinset": number
+  "aria-expanded"?: boolean
+  "aria-label": string
+  tabIndex: number
+  "data-tree-id": string
+}
+
+const PR_WORD = { open: "open", draft: "draft", merged: "merged", closed: "closed without merging" } as const
+
+/** What a screen reader says for a branch card: the same facts the card shows, in reading order. */
+function treeLabel(b: Branch, now: number, kids: number, stale: boolean): string {
+  const parts = [b.name]
+  if (b.isDefault) parts.push("default branch")
+  else if (b.local) parts.push("created in this browser, not pushed")
+  else if (b.orphan) parts.push("no shared history with the default branch")
+  else parts.push(b.ahead === 0 && b.behind === 0 ? "up to date with the default branch" : `${b.ahead} ahead, ${b.behind} behind`)
+  if (stale) parts.push("stale")
+  if (b.pr) parts.push(`pull request ${b.pr.number} ${PR_WORD[b.pr.state]}`)
+  if (b.checks) parts.push(`${b.checks.passed} of ${b.checks.total} checks passing`)
+  if (b.parentSource === "ancestry") parts.push("parent inferred from commit history")
+  if (b.parentDeleted) parts.push(`its original parent ${b.parentDeleted} was deleted`)
+  parts.push(`updated ${relativeTime(b.updatedAt, now)} by ${b.author.login}`)
+  if (kids) parts.push(`${kids} ${kids === 1 ? "branch" : "branches"} under it`)
+  return parts.join(", ")
+}
+
 const INFO_PATH = "M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"
 
 export interface TreeViewProps {
@@ -66,6 +101,8 @@ export function TreeView(props: TreeViewProps) {
   const { branches, byName, kidsOf, viewer, tab, now, offsets, setOffsets, prefs, setPrefs, isYours, defaultBranch, fullName, onNewBranch } = props
 
   const [sel, setSel] = useState<string | null>(props.focus?.name ?? null)
+  /** The tree item holding keyboard focus (roving tabindex). Separate from the selection, which opens the panel. */
+  const [active, setActive] = useState<string | null>(props.focus?.name ?? null)
   const [q, setQ] = useState("")
   const [owner, setOwner] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -148,6 +185,7 @@ export function TreeView(props: TreeViewProps) {
       setCollapsed(s => ({ ...s, ...Object.fromEntries(ancestors.map(a => [a, false])) }))
       setExpanded(s => ({ ...s, ...Object.fromEntries(ancestors.map(a => [a, true])) }))
       setSel(name)
+      setActive(name)
       setTimeout(() => {
         const el = canvasRef.current, pos = layoutRef.current.P[name]
         if (!el || !pos) return
@@ -171,6 +209,85 @@ export function TreeView(props: TreeViewProps) {
   const onSelect = props.onSelect
   useEffect(() => { onSelect?.(sel) }, [sel, onSelect])
 
+  // ---- keyboard model: the visible tree in reading order (each parent before its children) ----
+  const nav = useMemo(() => {
+    const kids = new Map<string, string[]>()
+    const parent = new Map<string, string>()
+    for (const e of layout.edges) {
+      if (e.item.kind === "ghost") continue
+      kids.set(e.from, [...(kids.get(e.from) ?? []), e.to])
+      parent.set(e.to, e.from)
+    }
+    const items = new Map(layout.items.map(it => [it.id, it]))
+    // layout.items lists children before their parents; roots keep their layout order.
+    const roots = layout.items.filter(it => it.kind !== "ghost" && !parent.has(it.id)).map(it => it.id)
+    const order: string[] = []
+    const level = new Map<string, number>()
+    const walk = (id: string, depth: number) => {
+      order.push(id)
+      level.set(id, depth)
+      for (const k of kids.get(id) ?? []) walk(k, depth + 1)
+    }
+    roots.forEach(r => walk(r, 1))
+    const siblings = (id: string) => {
+      const p = parent.get(id)
+      return p ? kids.get(p)! : roots
+    }
+    return { kids, parent, items, order, level, siblings }
+  }, [layout])
+
+  /** The focusable item: the active one if it's still laid out, else its nearest visible stand-in. */
+  const activeId = useMemo(() => {
+    if (active && nav.items.has(active)) return active
+    // An expanded "+N more" item is replaced by the branches it stood for.
+    if (active?.startsWith("stub:")) {
+      const p = active.slice(5)
+      return nav.kids.get(p)?.[0] ?? (nav.items.has(p) ? p : nav.order[0] ?? null)
+    }
+    for (let p = active ? byName.get(active)?.parent : null; p; p = byName.get(p)?.parent) if (nav.items.has(p)) return p
+    if (sel && nav.items.has(sel)) return sel
+    return nav.order[0] ?? null
+  }, [active, nav, byName, sel])
+
+  const selRef = useRef(sel)
+  useEffect(() => { selRef.current = sel }, [sel])
+
+  /** Pans just enough to bring an item fully into view, clear of the toolbar, the filters and the details panel. */
+  const ensureVisible = useCallback((id: string) => {
+    const el = canvasRef.current, pos = layoutRef.current.P[id]
+    if (!el || !pos) return
+    const r = el.getBoundingClientRect()
+    const right = r.width - (selRef.current ? PANEL_W + 28 : 16)
+    setCamAnim(true)
+    setCam(c => {
+      const x0 = c.px + pos.x * c.z, y0 = c.py + pos.y * c.z
+      const x1 = x0 + CARD_W * c.z, y1 = y0 + pos.h * c.z
+      const dx = x0 < 72 ? 72 - x0 : x1 > right ? right - x1 : 0
+      const dy = y0 < 64 ? 64 - y0 : y1 > r.height - 16 ? r.height - 16 - y1 : 0
+      return dx || dy ? { ...c, px: c.px + dx, py: c.py + dy } : c
+    })
+  }, [])
+
+  // Focus synchronously when the item is already rendered, so a held arrow key always starts from the right place;
+  // otherwise (it appears with the next render) on the next frame. preventScroll: the canvas clips with overflow,
+  // and letting the browser scroll it would break the camera.
+  const focusItem = useCallback((id: string) => {
+    const find = () => canvasRef.current?.querySelector<HTMLElement>(`[data-tree-id="${CSS.escape(id)}"]`)
+    const el = find()
+    if (el) el.focus({ preventScroll: true })
+    else requestAnimationFrame(() => find()?.focus({ preventScroll: true }))
+  }, [])
+
+  const moveTo = useCallback(
+    (id: string | undefined) => {
+      if (!id) return
+      setActive(id)
+      ensureVisible(id)
+      focusItem(id)
+    },
+    [ensureVisible, focusItem],
+  )
+
   // Wheel zoom around the cursor (non-passive so the page doesn't scroll).
   useEffect(() => {
     const el = canvasRef.current
@@ -189,8 +306,8 @@ export function TreeView(props: TreeViewProps) {
   }, [])
 
   // Keyboard: "/" focuses search, Esc clears selection → search → owner.
-  const escState = useRef({ sel, q, owner })
-  useEffect(() => { escState.current = { sel, q, owner } }, [sel, q, owner])
+  const escState = useRef({ sel, q, owner, activeId })
+  useEffect(() => { escState.current = { sel, q, owner, activeId } }, [sel, q, owner, activeId])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
@@ -201,14 +318,17 @@ export function TreeView(props: TreeViewProps) {
       }
       if (e.key === "Escape") {
         const s = escState.current
-        if (s.sel) setSel(null)
-        else if (s.q) setQ("")
+        if (s.sel) {
+          setSel(null)
+          // Closing the panel from inside it returns focus to the tree, not to the page.
+          if (t?.closest("[data-branch-panel]") && s.activeId) focusItem(s.activeId)
+        } else if (s.q) setQ("")
         else if (s.owner) setOwner(null)
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [focusItem])
 
   // ---- derived highlight state ----------------------------------------------
   const path = useCallback(
@@ -309,6 +429,69 @@ export function TreeView(props: TreeViewProps) {
     setSel(s => (s === name ? null : name))
   }, [])
 
+  /**
+   * WAI-ARIA tree keyboard pattern. ↑/↓ walk the visible tree in reading order; → opens a closed group or moves to
+   * its first branch; ← closes an open group or moves to the parent; Home/End jump to the ends; Enter or Space opens a
+   * branch's details (or expands a "+N more" item); typing a character jumps to the next branch starting with it.
+   */
+  const onTreeKeyDown = (e: React.KeyboardEvent) => {
+    // The focused element is the source of truth; state can lag a fast key repeat by a render.
+    const id = (e.target as HTMLElement).closest<HTMLElement>("[data-tree-id]")?.dataset.treeId ?? activeId
+    if (!id) return
+    const it = nav.items.get(id)
+    const i = nav.order.indexOf(id)
+    const hasKids = it?.kind === "card" && kidsOf(id).length > 0
+    const open = hasKids && !collapsed[id]
+    let handled = true
+    switch (e.key) {
+      case "ArrowDown": moveTo(nav.order[i + 1]); break
+      case "ArrowUp": moveTo(nav.order[i - 1]); break
+      case "Home": moveTo(nav.order[0]); break
+      case "End": moveTo(nav.order[nav.order.length - 1]); break
+      case "ArrowRight":
+        if (hasKids && !open) toggleCollapsed(id)
+        else moveTo(nav.kids.get(id)?.[0])
+        break
+      case "ArrowLeft":
+        if (open) toggleCollapsed(id)
+        else moveTo(nav.parent.get(id))
+        break
+      case "Enter":
+      case " ":
+        // Expanding a collapsed group replaces its item with its branches; the effect below moves focus onto them.
+        if (it?.kind === "stub") onStubClick(it)
+        else if (it?.kind === "card") setSel(id)
+        break
+      default:
+        if (e.key.length === 1 && e.key !== "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const ch = e.key.toLowerCase()
+          const after = [...nav.order.slice(i + 1), ...nav.order.slice(0, i + 1)]
+          moveTo(after.find(o => nav.items.get(o)?.kind === "card" && o.toLowerCase().startsWith(ch)))
+        } else handled = false
+    }
+    if (handled) { e.preventDefault(); e.stopPropagation() }
+  }
+  // The cards are memoised below; they reach the latest handler through this ref, updated before the next paint.
+  const treeKeyDown = useRef(onTreeKeyDown)
+  useLayoutEffect(() => { treeKeyDown.current = onTreeKeyDown })
+
+  // When the focused item disappears (its group was expanded into branches), hand focus to its stand-in.
+  const treeRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!activeId || !treeRef.current) return
+    const focused = document.activeElement
+    if (focused === document.body && active?.startsWith("stub:") && active !== activeId) focusItem(activeId)
+  }, [activeId, active, focusItem])
+
+  const onItemFocus = useCallback(
+    (e: React.FocusEvent<HTMLElement>, id: string) => {
+      setActive(id)
+      // Only keyboard focus moves the camera; a click lands where the user is already looking.
+      if (e.currentTarget.matches(":focus-visible")) ensureVisible(id)
+    },
+    [ensureVisible],
+  )
+
   // ---- world (memoised so panning/zooming doesn't re-render the cards) --------
   const dragIds = nodeDrag?.ids
   const dragging = !!nodeDrag
@@ -363,34 +546,59 @@ export function TreeView(props: TreeViewProps) {
         labels.push({ key: b.name, x: e.mx, y: e.my, text: b.parentSource === "manual" ? "parent set manually" : `${b.parentSource === "created" ? "created" : "forked"} ${relativeTime(b.forkedAt, now)}`, color: "var(--fgColor-accent)", border: "var(--borderColor-accent-muted)" })
     })
 
+    // Each item's place in the tree for assistive tech, plus the single roving tab stop.
+    const treeItem = (id: string, label: string, expanded?: boolean): TreeItemProps => {
+      const sibs = nav.siblings(id)
+      return {
+        role: "treeitem",
+        "aria-level": nav.level.get(id) ?? 1,
+        "aria-setsize": sibs.length,
+        "aria-posinset": sibs.indexOf(id) + 1,
+        "aria-expanded": expanded,
+        "aria-label": label,
+        tabIndex: id === activeId ? 0 : -1,
+        "data-tree-id": id,
+      }
+    }
+    const ghost = layout.items.find(it => it.kind === "ghost")
+
     return (
       <>
-        {wires}
-        {layout.groups.map(g => (
-          <div key={g.text} className="absolute flex items-center gap-2 text-xs font-semibold whitespace-nowrap text-fg-muted" style={{ left: g.x, top: g.y }}>
-            <span className="h-px w-6 bg-(--borderColor-emphasis)" />
-            {g.text}
-          </div>
-        ))}
-        {labels.map(w => (
-          <div
-            key={w.key}
-            className="absolute -translate-x-1/2 -translate-y-1/2 animate-fade-in rounded-[20px] border bg-canvas px-2 py-[3px] font-mono text-[11px] whitespace-nowrap [animation-delay:.15s]"
-            style={{ left: w.x, top: w.y, color: w.color, borderColor: w.border }}
-          >
-            {w.text}
-          </div>
-        ))}
-        {layout.items.map(it => {
+        {/* Wires and their labels repeat what each item's label says, so they're hidden from assistive tech. */}
+        <div aria-hidden>
+          {wires}
+          {layout.groups.map(g => (
+            <div key={g.text} className="absolute flex items-center gap-2 text-xs font-semibold whitespace-nowrap text-fg-muted" style={{ left: g.x, top: g.y }}>
+              <span className="h-px w-6 bg-(--borderColor-emphasis)" />
+              {g.text}
+            </div>
+          ))}
+          {labels.map(w => (
+            <div
+              key={w.key}
+              className="absolute -translate-x-1/2 -translate-y-1/2 animate-fade-in rounded-[20px] border bg-canvas px-2 py-[3px] font-mono text-[11px] whitespace-nowrap [animation-delay:.15s]"
+              style={{ left: w.x, top: w.y, color: w.color, borderColor: w.border }}
+            >
+              {w.text}
+            </div>
+          ))}
+        </div>
+        <div ref={treeRef} role="tree" aria-label={`Branches in ${fullName}`} aria-describedby={TREE_HINT_ID} onKeyDown={e => treeKeyDown.current(e)}>
+        {nav.order.map(id => nav.items.get(id)!).map(it => {
           const p = P[it.id]
           if (it.kind === "stub") {
             const total = kidsOf(it.parent).length
+            const label =
+              it.mode === "fewer" ? `Show fewer branches under ${it.parent}` : it.mode === "collapsed" ? `Show ${total} hidden branches under ${it.parent}` : `Show ${it.count} more branches under ${it.parent}`
             return (
               <div
                 key={it.id}
+                {...treeItem(it.id, label)}
+                aria-selected={false}
+                onFocus={e => onItemFocus(e, it.id)}
                 onPointerDown={e => e.stopPropagation()}
                 onClick={() => onStubClick(it)}
-                className="absolute cursor-pointer"
+                className="absolute cursor-pointer rounded-xl outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--focus-outlineColor)"
                 style={{ left: p.x, top: p.y, width: CARD_W, opacity: dimOthers ? 0.5 : 1, transition: posTrans }}
               >
                 <div
@@ -409,34 +617,24 @@ export function TreeView(props: TreeViewProps) {
               </div>
             )
           }
-          if (it.kind === "ghost") {
-            return (
-              <div key={it.id} onPointerDown={e => e.stopPropagation()} className="absolute" style={{ left: p.x, top: p.y, width: CARD_W }}>
-                <div className="relative flex flex-col gap-2.5 rounded-xl border border-dashed border-(--borderColor-emphasis) bg-canvas/60 p-4" style={{ animation: `node-in .5s ${EASE} 200ms backwards` }}>
-                  <span className="text-[13px] font-medium">No other branches yet</span>
-                  <span className="text-xs text-pretty text-fg-muted">Branches you create from {defaultBranch} will appear here, connected to it.</span>
-                  <div className="flex">
-                    <Button size="sm" onClick={() => onNewBranch(defaultBranch)}>New branch</Button>
-                  </div>
-                  <span className="absolute top-6 -left-1.5 size-2.5 rounded-full border-[1.5px] border-dashed border-fg-subtle bg-canvas" />
-                </div>
-              </div>
-            )
-          }
+          if (it.kind === "ghost") return null
           const b = it.b
           const selected = sel === b.name
           const hot = !!selBranch && pathIds.includes(b.name)
           const hit = filtering && hits.includes(b)
           const inDrag = !!dragIds?.includes(b.name)
+          const kidsCount = kidsOf(b.name).length
           return (
             <BranchCard
               key={it.id}
+              item={treeItem(b.name, treeLabel(b, now, kidsCount, isStale(b, now)), kidsCount ? !collapsed[b.name] : undefined)}
+              onFocus={onItemFocus}
               b={b}
               x={p.x}
               y={p.y}
               now={now}
               color={branchColor(b)}
-              kidsCount={kidsOf(b.name).length}
+              kidsCount={kidsCount}
               parentName={b.parent}
               isCollapsed={!!collapsed[b.name]}
               selected={selected}
@@ -457,9 +655,23 @@ export function TreeView(props: TreeViewProps) {
             />
           )
         })}
+        </div>
+        {/* Shown when the repository has a single branch; it isn't part of the tree, so it stays outside it. */}
+        {ghost && (
+          <div onPointerDown={e => e.stopPropagation()} className="absolute" style={{ left: P[ghost.id].x, top: P[ghost.id].y, width: CARD_W }}>
+            <div className="relative flex flex-col gap-2.5 rounded-xl border border-dashed border-(--borderColor-emphasis) bg-canvas/60 p-4" style={{ animation: `node-in .5s ${EASE} 200ms backwards` }}>
+              <span className="text-[13px] font-medium">No other branches yet</span>
+              <span className="text-xs text-pretty text-fg-muted">Branches you create from {defaultBranch} will appear here, connected to it.</span>
+              <div className="flex">
+                <Button size="sm" onClick={() => onNewBranch(defaultBranch)}>New branch</Button>
+              </div>
+              <span className="absolute top-6 -left-1.5 size-2.5 rounded-full border-[1.5px] border-dashed border-fg-subtle bg-canvas" />
+            </div>
+          </div>
+        )}
       </>
     )
-  }, [layout, orthogonal, dragging, dragIds, nodeDrag?.moved, selBranch, pathIds, ql, faded, intro, prefs.wireLabels, now, kidsOf, onStubClick, defaultBranch, onNewBranch, sel, filtering, hits, collapsed, maxAhead, maxBehind, startNodeDrag, onCardClick, toggleCollapsed])
+  }, [layout, orthogonal, dragging, dragIds, nodeDrag?.moved, selBranch, pathIds, ql, faded, intro, prefs.wireLabels, now, kidsOf, onStubClick, defaultBranch, onNewBranch, sel, filtering, hits, collapsed, maxAhead, maxBehind, startNodeDrag, onCardClick, toggleCollapsed, nav, activeId, onItemFocus, fullName])
 
   // ---- owners menu -------------------------------------------------------------
   const owners = useMemo(() => {
@@ -486,6 +698,8 @@ export function TreeView(props: TreeViewProps) {
       onPointerMove={onCanvasMove}
       onPointerUp={onCanvasUp}
       onPointerLeave={onCanvasUp}
+      // The camera owns the view: undo any scrolling the browser does to reveal a focused element.
+      onScroll={e => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0 }}
       className="relative mt-4 h-[680px] animate-view-in touch-none overflow-hidden rounded-[14px] border border-border-default bg-canvas-subtle select-none"
       style={{
         backgroundImage: "radial-gradient(var(--borderColor-default) 1px, transparent 1px)",
@@ -495,14 +709,15 @@ export function TreeView(props: TreeViewProps) {
         cursor: pan ? "grabbing" : "grab",
       }}
     >
-      <div
-        className="absolute top-0 left-0 origin-top-left"
-        style={{ transform: `translate(${cam.px}px, ${cam.py}px) scale(${cam.z})`, transition: camAnim ? `transform .45s ${EASE}` : "none" }}
-      >
-        {world}
+      <p id={TREE_HINT_ID} className="sr-only">
+        Use the arrow keys to move between branches. Right arrow opens a group or moves to its first branch; left arrow closes it or moves to the parent.
+        Press Enter for a branch’s details.
+      </p>
+      <div role="status" className="sr-only">
+        {ql ? `${hits.length} ${hits.length === 1 ? "branch matches" : "branches match"} “${q.trim()}”` : owner ? `Showing branches by ${owner}` : ""}
       </div>
 
-      {/* Owner filter + search */}
+      {/* Owner filter + search (first in keyboard order, as they're first on screen) */}
       <div className="absolute top-3.5 left-3.5 z-[4] flex flex-wrap items-start gap-2" onPointerDown={stop}>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -572,6 +787,31 @@ export function TreeView(props: TreeViewProps) {
         </label>
       </div>
 
+      {/* Then the tree, then the details panel it opens, so Tab goes straight from one to the other. */}
+      <div
+        className="absolute top-0 left-0 origin-top-left"
+        style={{ transform: `translate(${cam.px}px, ${cam.py}px) scale(${cam.z})`, transition: camAnim ? `transform .45s ${EASE}` : "none" }}
+      >
+        {world}
+      </div>
+
+      {selBranch && (
+        <SelectionPanel
+          key={selBranch.name}
+          b={selBranch}
+          lineage={path(selBranch.name)}
+          fullName={fullName}
+          defaultBranch={defaultBranch}
+          branches={branches}
+          kidsOf={kidsOf}
+          now={now}
+          onClose={() => { setSel(null); if (activeId) focusItem(activeId) }}
+          onDelete={name => { setSel(null); props.onDelete(name) }}
+          onSetParent={(name, parent) => { props.onSetParent(name, parent); refit() }}
+          onNewBranch={onNewBranch}
+        />
+      )}
+
       {/* Zoom / layout toolbar */}
       <div onPointerDown={stop} className="absolute top-1/2 left-3.5 z-[3] flex -translate-y-1/2 flex-col gap-0.5 rounded-md border border-(--control-borderColor-rest) bg-(--bgColor-default) p-1 shadow-resting">
         <ToolButton title="Zoom in" onClick={() => zoomBy(1.2)}><span className="text-lg leading-none">+</span></ToolButton>
@@ -626,23 +866,6 @@ export function TreeView(props: TreeViewProps) {
           <span>{ql && owner ? `No branches by ${owner} match “${q.trim()}”` : ql ? `No branches match “${q.trim()}”` : `${owner} has no branches here`}</span>
           <Button variant="outline" size="sm" onClick={() => { setQ(""); setOwner(null) }}>Clear</Button>
         </div>
-      )}
-
-      {selBranch && (
-        <SelectionPanel
-          key={selBranch.name}
-          b={selBranch}
-          lineage={path(selBranch.name)}
-          fullName={fullName}
-          defaultBranch={defaultBranch}
-          branches={branches}
-          kidsOf={kidsOf}
-          now={now}
-          onClose={() => setSel(null)}
-          onDelete={name => { setSel(null); props.onDelete(name) }}
-          onSetParent={(name, parent) => { props.onSetParent(name, parent); refit() }}
-          onNewBranch={onNewBranch}
-        />
       )}
     </div>
   )
@@ -726,6 +949,8 @@ export function Segmented<T extends string>({ value, options, onChange, size = "
 }
 
 interface CardProps {
+  item: TreeItemProps
+  onFocus: (e: React.FocusEvent<HTMLElement>, id: string) => void
   b: Branch
   x: number
   y: number
@@ -784,9 +1009,12 @@ function BranchCard(p: CardProps) {
 
   return (
     <div
+      {...p.item}
+      aria-selected={p.selected}
+      onFocus={e => p.onFocus(e, b.name)}
       onPointerDown={e => p.onPointerDown(e, b)}
       onClick={() => p.onClick(b.name)}
-      className="absolute touch-none"
+      className="absolute touch-none rounded-md outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--focus-outlineColor)"
       style={{ left: p.x, top: p.y, width: CARD_W, opacity: p.faded ? (p.dimStrong ? 0.35 : 0.3) : 1, cursor: p.grabbing ? "grabbing" : "grab", zIndex: p.lifted ? 3 : 1, transition: p.trans }}
     >
       <div
@@ -805,9 +1033,10 @@ function BranchCard(p: CardProps) {
           </div>
           {!b.isDefault && !b.orphan && !upToDate && (
             <div title={`${b.behind} behind, ${b.ahead} ahead of the default branch`} className="grid h-5 grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] items-center gap-x-1.5 gap-y-[3px] text-xs tabular-nums">
-              <span className="text-right leading-none text-fg-muted">{b.behind} <span className="text-fg-subtle">behind</span></span>
+              {/* Numbers in the default text colour, words in muted: both clear WCAG AA (4.5:1) at this size. */}
+              <span className="text-right leading-none text-fg-default">{b.behind} <span className="text-fg-muted">behind</span></span>
               <span className="row-span-2 h-5 w-px bg-border-default" />
-              <span className="leading-none text-fg-muted">{b.ahead} <span className="text-fg-subtle">ahead</span></span>
+              <span className="leading-none text-fg-default">{b.ahead} <span className="text-fg-muted">ahead</span></span>
               <span className="flex h-1 justify-end rounded-sm bg-canvas-inset"><span className="rounded-sm bg-fg-subtle" style={{ width: `${p.bw}%` }} /></span>
               <span className="flex h-1 rounded-sm bg-canvas-inset"><span className="rounded-sm" style={{ width: `${p.aw}%`, background: p.color }} /></span>
             </div>
@@ -829,8 +1058,11 @@ function BranchCard(p: CardProps) {
           />
         )}
         {p.kidsCount > 0 && (
+          // Pointer shortcut only: a tree item can't contain its own focusable controls, so the keyboard uses ←/→.
           <button
             type="button"
+            tabIndex={-1}
+            aria-hidden
             onPointerDown={e => e.stopPropagation()}
             onClick={e => { e.stopPropagation(); p.onToggle(b.name) }}
             title={p.isCollapsed ? `Expand ${p.kidsCount} branches` : "Collapse children"}
@@ -934,6 +1166,9 @@ function SelectionPanel({
 
   return (
     <div
+      role="region"
+      aria-label={`Details for ${b.name}`}
+      data-branch-panel
       onPointerDown={e => e.stopPropagation()}
       className="absolute top-3.5 right-3.5 z-[5] max-h-[calc(100%-70px)] w-[340px] animate-panel-in cursor-default overflow-x-hidden overflow-y-auto rounded-xl border border-border-default bg-canvas shadow-floating-lg"
     >

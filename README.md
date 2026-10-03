@@ -50,8 +50,29 @@ Links such as *Open PR*, *Compare*, *New pull request*, *View commits* and *Acti
 
 ## Deploying to Netlify
 
-`netlify.toml` sets the build (`npm run build`, Node 22), and Netlify's Next.js runtime is applied automatically. Leave the base directory empty. Under **Site configuration → Environment variables**, add `GITHUB_TOKEN`. A fine-grained token with read-only access to public repositories is enough. Without it, the site is limited to the anonymous REST fallback, which shares one rate limit across Netlify's servers.
+`netlify.toml` sets the build (`npm run build`, Node 22) and declares Netlify's Next.js runtime (`@netlify/plugin-nextjs`). Leave the base directory empty. Under **Site configuration → Environment variables**, add `GITHUB_TOKEN`. A fine-grained token with read-only access to public repositories is enough. Without it, the site is limited to the anonymous REST fallback, which shares one rate limit across Netlify's servers.
 
 ## Tree view controls
 
 Drag the canvas to pan, scroll to zoom, drag a card to move it (Shift+drag moves its children too), `/` focuses the canvas search and Enter jumps to the first match, Esc clears selection → search → owner filter.
+
+### Keyboard
+
+The canvas is a single Tab stop that follows the [WAI-ARIA tree pattern](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/); the camera pans to keep the focused branch in view.
+
+| Key | Action |
+|---|---|
+| ↑ / ↓ | Previous / next branch in reading order |
+| → | Open a collapsed group, or move to its first branch |
+| ← | Close an open group, or move to the parent |
+| Home / End | First / last branch |
+| Enter or Space | Open the branch's details (or expand a "+N more" item) |
+| A–Z | Jump to the next branch starting with that letter |
+| Tab | From the tree into its details panel; Esc there closes it and returns to the branch |
+
+## Accessibility
+
+- **Screen readers.** The canvas is a `tree`: each card is a `treeitem` with its level, position among siblings and expanded state, and a label that reads out what the card shows: *"liuliu/fix-selectpanel-announcement, 19 ahead, 0 behind, pull request 8482 draft, 40 of 55 checks passing, updated 2 days ago by liuliu-dev"*. Wires and their labels repeat that information, so they're hidden from assistive tech. Search results are announced through a live region, and the details panel is a labelled region.
+- **Motion.** `prefers-reduced-motion` turns off every animation and transition, including camera moves.
+- **Colour.** github.com's colorblind-friendly themes; text meets WCAG AA contrast in light and dark, and links inside sentences are underlined.
+- **Verified** with [axe-core](https://github.com/dequelabs/axe-core) against WCAG 2.2 A/AA and best practices: no violations in the tree, the tree with its details panel open, and the list, in both light and dark themes.

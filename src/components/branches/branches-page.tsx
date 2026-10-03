@@ -254,7 +254,8 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
         <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted">
           <span>
             {graph.branches.length < graph.totalBranches ? `${graph.branches.length} of ${graph.totalBranches}` : graph.branches.length} branches from{" "}
-            <a href={graph.htmlUrl} target="_blank" rel="noreferrer">{fullName}</a> · graph built from {graph.commitsScanned.toLocaleString()} commits · fetched {relativeTime(graph.fetchedAt, now)}
+            {/* Underlined: inside a sentence, colour alone doesn't mark a link (WCAG 1.4.1). */}
+            <a href={graph.htmlUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">{fullName}</a> · graph built from {graph.commitsScanned.toLocaleString()} commits · fetched {relativeTime(graph.fetchedAt, now)}
           </span>
           <Link href={refreshHref} prefetch={false} className="inline-flex items-center gap-1">
             <SyncIcon size={12} />Refresh

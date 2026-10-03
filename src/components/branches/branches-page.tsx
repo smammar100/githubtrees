@@ -162,7 +162,8 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
   )
 
   const tabs: [Tab, string][] = [["overview", "Overview"], ...(viewer ? [["yours", "Yours"] as [Tab, string]] : []), ["active", "Active"], ["stale", "Stale"], ["all", "All"]]
-  const refreshHref = `?fresh=1${view === "list" ? "&view=list" : ""}${tab !== "overview" ? `&tab=${tab}` : ""}`
+  // A new ?fresh value each time, so the request misses the edge cache.
+  const refreshHref = `?fresh=${now}${view === "list" ? "&view=list" : ""}${tab !== "overview" ? `&tab=${tab}` : ""}`
 
   return (
     <div className="flex min-h-screen flex-col">

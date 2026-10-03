@@ -70,7 +70,7 @@ export function ListView({
   const curPage = Math.min(page, pages - 1)
 
   return (
-    <div className="animate-view-in">
+    <div>
       <label className="mt-4 flex h-8 items-center gap-2 rounded-md border border-border-default bg-canvas px-2 text-sm focus-within:border-fg-accent focus-within:shadow-[0_0_0_1px_var(--fgColor-accent)]">
         <SearchIcon size={16} className="text-fg-muted" />
         <input
@@ -100,7 +100,7 @@ export function ListView({
         return (
           <section key={sec.key}>
             {tab === "overview" ? (
-              <h2 className="mt-4 mb-2 animate-view-in text-base font-semibold [animation-delay:.05s]">{sec.title}</h2>
+              <h2 className="mt-4 mb-2 text-base font-semibold">{sec.title}</h2>
             ) : (
               <h2 className="sr-only">{sec.title}</h2>
             )}

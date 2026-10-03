@@ -121,7 +121,7 @@ export function TreeView(props: TreeViewProps) {
   const suppressClick = useRef(false)
 
   useEffect(() => {
-    const t = setTimeout(() => setIntro(false), 1700)
+    const t = setTimeout(() => setIntro(false), 900)
     return () => clearTimeout(t)
   }, [])
 
@@ -148,7 +148,7 @@ export function TreeView(props: TreeViewProps) {
   const layoutRef = useRef<Layout>(layout)
   useEffect(() => { layoutRef.current = layout }, [layout])
 
-  const fit = useCallback(() => {
+  const fit = useCallback((animate = true) => {
     const el = canvasRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
@@ -156,7 +156,7 @@ export function TreeView(props: TreeViewProps) {
     const w = b.x1 - b.x0, h = b.y1 - b.y0
     const z = Math.max(0.62, Math.min((r.width - 160) / w, (r.height - 150) / h, 1.05))
     const fitsW = w * z <= r.width - 120, fitsH = h * z <= r.height - 110
-    setCamAnim(true)
+    setCamAnim(animate)
     setCam({
       z,
       px: fitsW ? (r.width - w * z) / 2 - b.x0 * z + 24 : 70 - b.x0 * z,
@@ -165,10 +165,8 @@ export function TreeView(props: TreeViewProps) {
   }, [])
   const refit = useCallback(() => setTimeout(fit, 20), [fit])
 
-  useEffect(() => {
-    const t = setTimeout(fit, 60)
-    return () => clearTimeout(t)
-  }, [fit])
+  // Frame the tree before the first paint, so it doesn't visibly glide into place on load.
+  useLayoutEffect(() => fit(false), [fit])
 
   const zoomBy = useCallback((f: number) => {
     const el = canvasRef.current
@@ -500,7 +498,7 @@ export function TreeView(props: TreeViewProps) {
   const world = useMemo(() => {
     const { P } = layout
     const wireTrans = dragging ? "none" : `d .4s ${EASE}`
-    const nodeDelay = (id: string) => Math.min(900, Math.round((P[id].x / COL) * 160 + Math.max(0, P[id].y) / 8))
+    const nodeDelay = (id: string) => Math.min(300, Math.round((P[id].x / COL) * 60 + Math.max(0, P[id].y) / 24))
     const posTrans = dragging ? "opacity .2s" : `opacity .25s, left .4s ${EASE}, top .4s ${EASE}`
     const edgeGeo = layout.edges.map(e => ({ ...e, ...edgePath(P[e.from], P[e.to], orthogonal) }))
     const dimOthers = !!selBranch || !!ql
@@ -514,7 +512,7 @@ export function TreeView(props: TreeViewProps) {
           const dashed = !b || warm
           const stroke = hot ? "var(--fgColor-accent)" : warm ? "var(--borderColor-attention-emphasis)" : "var(--borderColor-emphasis)"
           const off = b ? faded(b.name) : dimOthers
-          const delay = nodeDelay(e.to) + 120
+          const delay = nodeDelay(e.to) + 60
           const style = { d: `path("${e.d}")`, transition: wireTrans } as React.CSSProperties
           return (
             <g key={e.to} opacity={off ? 0.28 : 1}>
@@ -524,7 +522,7 @@ export function TreeView(props: TreeViewProps) {
                 strokeWidth={hot ? 2.25 : 1.5}
                 strokeDasharray={dashed && !hot ? "5 5" : intro ? 1 : undefined}
                 pathLength={dashed && !hot ? undefined : intro ? 1 : undefined}
-                style={{ ...style, stroke, animation: intro ? (dashed ? `fade-in .5s ease ${delay}ms backwards` : `wire-draw .7s ${EASE} ${delay}ms backwards`) : "none" }}
+                style={{ ...style, stroke, animation: intro ? (dashed ? `fade-in .35s ease ${delay}ms backwards` : `wire-draw .45s ${EASE} ${delay}ms backwards`) : "none" }}
               />
               {hot && (
                 <path d={e.d} fill="none" strokeWidth={1.75} strokeDasharray="4 16" strokeLinecap="round" style={{ ...style, stroke: "var(--bgColor-default)", animation: "wireflow .9s linear infinite" }} />
@@ -648,7 +646,7 @@ export function TreeView(props: TreeViewProps) {
                 aw={Math.min(100, (b.ahead / maxAhead) * 100)}
                 bw={Math.min(100, (b.behind / maxBehind) * 100)}
                 trans={inDrag ? "opacity .2s" : posTrans}
-                anim={intro ? `node-in .5s ${EASE} ${nodeDelay(it.id)}ms backwards` : selected ? "ping-ring .9s ease-out 1" : "none"}
+                anim={intro ? `node-in .35s ${EASE} ${nodeDelay(it.id)}ms backwards` : selected ? "ping-ring .9s ease-out 1" : "none"}
                 grabbing={inDrag && !!nodeDrag?.moved}
                 lifted={inDrag}
                 onPointerDown={startNodeDrag}
@@ -699,7 +697,7 @@ export function TreeView(props: TreeViewProps) {
       onPointerLeave={onCanvasUp}
       // The camera owns the view: undo any scrolling the browser does to reveal a focused element.
       onScroll={e => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0 }}
-      className="relative mt-4 h-[680px] animate-view-in touch-none overflow-hidden rounded-[14px] border border-border-default bg-canvas-subtle select-none"
+      className="relative mt-4 h-[680px] touch-none overflow-hidden rounded-[14px] border border-border-default bg-canvas-subtle select-none"
       style={{
         backgroundImage: "radial-gradient(var(--borderColor-default) 1px, transparent 1px)",
         backgroundSize: `${18 * cam.z}px ${18 * cam.z}px`,
@@ -815,7 +813,7 @@ export function TreeView(props: TreeViewProps) {
         <ToolButton title="Zoom in" onClick={() => zoomBy(1.2)}><ZoomInIcon size={16} /></ToolButton>
         <ToolButton title="Zoom out" onClick={() => zoomBy(1 / 1.2)}><ZoomOutIcon size={16} /></ToolButton>
         <div className="mx-1 my-0.5 h-px bg-border-default" />
-        <ToolButton title="Fit to screen" onClick={fit}><ScreenFullIcon size={16} /></ToolButton>
+        <ToolButton title="Fit to screen" onClick={() => fit()}><ScreenFullIcon size={16} /></ToolButton>
         <ToolButton
           title={anyOpen ? "Collapse all groups" : "Expand all groups"}
           onClick={() => {

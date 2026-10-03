@@ -20,7 +20,7 @@ function Shell({ owner, repo, children }: { owner: string; repo: string; childre
           <UnderlineTabs tabs={[["overview", "Overview"], ["active", "Active"], ["stale", "Stale"], ["all", "All"]]} value="overview" />
         </div>
         <div
-          className="relative mt-4 h-[680px] animate-view-in overflow-hidden rounded-[14px] border border-border-default bg-canvas-subtle"
+          className="relative mt-4 h-[680px] overflow-hidden rounded-[14px] border border-border-default bg-canvas-subtle"
           style={{ backgroundImage: "radial-gradient(var(--borderColor-default) 1px, transparent 1px)", backgroundSize: "14px 14px" }}
         >
           {children}
@@ -69,7 +69,7 @@ export function GraphError({
   const title = reason === "not-found" ? "Repository not found" : reason === "rate-limited" ? "GitHub rate limit reached" : "Couldn’t build the branch graph"
   const retry = () => {
     if (onRetry) onRetry()
-    else router.replace(`/${owner}/${repo}/branches?fresh=1`)
+    else router.replace(`/${owner}/${repo}/branches?fresh=${Date.now()}`)
   }
   return (
     <Shell owner={owner} repo={repo}>

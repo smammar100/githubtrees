@@ -590,10 +590,10 @@ export function TreeView(props: TreeViewProps) {
           <PopoverContent side="right" align="center" sideOffset={10} className="w-64 gap-3 rounded-xl p-3.5 shadow-floating ring-0">
             <div className="text-xs font-semibold text-fg-muted">Canvas settings</div>
             <Setting label="Wires">
-              <Segmented value={prefs.wireStyle} options={[["curved", "Curved"], ["orthogonal", "Orthogonal"]]} onChange={v => setPrefs({ ...prefs, wireStyle: v })} />
+              <Segmented fullWidth value={prefs.wireStyle} options={[["curved", "Curved"], ["orthogonal", "Orthogonal"]]} onChange={v => setPrefs({ ...prefs, wireStyle: v })} />
             </Setting>
             <Setting label="Branches per group">
-              <Segmented value={String(prefs.collapseAfter)} options={[["4", "4"], ["6", "6"], ["10", "10"], ["20", "20"]]} onChange={v => { setPrefs({ ...prefs, collapseAfter: Number(v) }); refit() }} />
+              <Segmented fullWidth value={String(prefs.collapseAfter)} options={[["4", "4"], ["6", "6"], ["10", "10"], ["20", "20"]]} onChange={v => { setPrefs({ ...prefs, collapseAfter: Number(v) }); refit() }} />
             </Setting>
             <label className="flex cursor-pointer items-center justify-between text-sm">
               Fork labels on selected path
@@ -685,10 +685,13 @@ function Setting({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
-/** Primer SegmentedControl */
-export function Segmented<T extends string>({ value, options, onChange, size = "sm" }: { value: T; options: [T, React.ReactNode][]; onChange: (v: T) => void; size?: "sm" | "md" }) {
+/**
+ * Primer SegmentedControl. `fullWidth` splits the container's width evenly between the options; it uses equal grid
+ * columns because the selected option has less padding than the others, which flex would count against it.
+ */
+export function Segmented<T extends string>({ value, options, onChange, size = "sm", fullWidth = false }: { value: T; options: [T, React.ReactNode][]; onChange: (v: T) => void; size?: "sm" | "md"; fullWidth?: boolean }) {
   return (
-    <div role="group" className={cn("inline-flex rounded-md border border-transparent bg-canvas-inset text-xs", size === "sm" ? "h-7" : "h-8")}>
+    <div role="group" className={cn("rounded-md border border-transparent bg-canvas-inset text-xs", fullWidth ? "grid w-full auto-cols-fr grid-flow-col" : "inline-flex", size === "sm" ? "h-7" : "h-8")}>
       {options.map(([v, label], i) => {
         const on = v === value
         return (
@@ -697,11 +700,11 @@ export function Segmented<T extends string>({ value, options, onChange, size = "
             type="button"
             aria-pressed={on}
             onClick={() => onChange(v)}
-            className={cn("-my-px h-[calc(100%+2px)] cursor-pointer rounded-md border-0 bg-transparent text-fg-default", on ? "p-0 font-semibold" : "p-1 font-normal", i === 0 ? "-ml-px" : "ml-px", i === options.length - 1 && "-mr-px")}
+            className={cn("-my-px h-[calc(100%+2px)] cursor-pointer rounded-md border-0 bg-transparent text-fg-default", fullWidth && "min-w-0",on ? "p-0 font-semibold" : "p-1 font-normal", i === 0 ? "-ml-px" : "ml-px", i === options.length - 1 && "-mr-px")}
           >
             <span
               className={cn(
-                "flex h-full items-center gap-1 rounded-[5px] border",
+                "flex h-full items-center justify-center gap-1 rounded-[5px] border",
                 on ? "border-fg-subtle bg-canvas px-3" : "border-transparent px-2 hover:bg-(--controlTrack-bgColor-hover)",
               )}
             >

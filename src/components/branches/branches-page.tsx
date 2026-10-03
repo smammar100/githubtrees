@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { SyncIcon } from "@primer/octicons-react"
+import { ListUnorderedIcon, SyncIcon, WorkflowIcon } from "@primer/octicons-react"
 import { toast } from "sonner"
 import type { Branch, RepoGraph } from "@/lib/types"
 import { isActive, isStale, relativeTime } from "@/lib/branch-utils"
@@ -207,8 +207,8 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
               value={view}
               onChange={v => { setView(v); if (v === "list") setFocus(null) }}
               options={[
-                ["list", <><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-fg-muted"><path d="M5.75 2.5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5ZM2 14a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-6a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM2 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" /></svg>List</>],
-                ["tree", <><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" className="text-fg-muted" strokeWidth="1.5" strokeLinecap="round"><rect x="1.5" y="6" width="4" height="4" rx="1" /><rect x="10.5" y="2" width="4" height="4" rx="1" /><rect x="10.5" y="10" width="4" height="4" rx="1" /><path d="M5.5 8c3 0 2-4 5-4M5.5 8c3 0 2 4 5 4" /></svg>Tree</>],
+                ["list", <><ListUnorderedIcon size={16} className="text-fg-muted" />List</>],
+                ["tree", <><WorkflowIcon size={16} className="text-fg-muted" />Tree</>],
               ]}
             />
           </div>

@@ -15,6 +15,7 @@ import {
   PlayIcon,
   PlusIcon,
   RepoIcon,
+  SearchIcon,
   ShieldIcon,
   TableIcon,
   ThreeBarsIcon,
@@ -75,7 +76,7 @@ export function RepoHeader({
           onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "/" }))}
           className="hidden h-8 w-60 max-w-[30vw] flex-none cursor-text items-center gap-2 rounded-md border border-border-default bg-canvas px-2 text-sm text-fg-muted md:flex"
         >
-          <span className="flex"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z" /></svg></span>
+          <span className="flex"><SearchIcon size={16} /></span>
           <span className="flex items-center gap-1 whitespace-nowrap">
             Type <kbd className="rounded border border-border-default bg-canvas px-1 font-mono text-[11px] leading-4">/</kbd> to search
           </span>

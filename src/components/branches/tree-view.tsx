@@ -5,16 +5,24 @@ import {
   AlertIcon,
   CheckCircleFillIcon,
   CheckIcon,
+  DashIcon,
   DotFillIcon,
+  FoldIcon,
   GearIcon,
   GitBranchIcon,
   GitMergeIcon,
+  InfoIcon,
   LinkIcon,
   PersonIcon,
+  ScreenFullIcon,
   SearchIcon,
   TriangleDownIcon,
+  UndoIcon,
+  UnfoldIcon,
   XCircleFillIcon,
   XIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
 } from "@primer/octicons-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -68,8 +76,6 @@ function treeLabel(b: Branch, now: number, kids: number, stale: boolean): string
   if (kids) parts.push(`${kids} ${kids === 1 ? "branch" : "branches"} under it`)
   return parts.join(", ")
 }
-
-const INFO_PATH = "M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"
 
 export interface TreeViewProps {
   fullName: string
@@ -814,12 +820,10 @@ export function TreeView(props: TreeViewProps) {
 
       {/* Zoom / layout toolbar */}
       <div onPointerDown={stop} className="absolute top-1/2 left-3.5 z-[3] flex -translate-y-1/2 flex-col gap-0.5 rounded-md border border-(--control-borderColor-rest) bg-(--bgColor-default) p-1 shadow-resting">
-        <ToolButton title="Zoom in" onClick={() => zoomBy(1.2)}><span className="text-lg leading-none">+</span></ToolButton>
-        <ToolButton title="Zoom out" onClick={() => zoomBy(1 / 1.2)}><span className="text-lg leading-none">−</span></ToolButton>
+        <ToolButton title="Zoom in" onClick={() => zoomBy(1.2)}><ZoomInIcon size={16} /></ToolButton>
+        <ToolButton title="Zoom out" onClick={() => zoomBy(1 / 1.2)}><ZoomOutIcon size={16} /></ToolButton>
         <div className="mx-1 my-0.5 h-px bg-border-default" />
-        <ToolButton title="Fit to screen" onClick={fit}>
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg>
-        </ToolButton>
+        <ToolButton title="Fit to screen" onClick={fit}><ScreenFullIcon size={16} /></ToolButton>
         <ToolButton
           title={anyOpen ? "Collapse all groups" : "Expand all groups"}
           onClick={() => {
@@ -827,9 +831,7 @@ export function TreeView(props: TreeViewProps) {
             refit()
           }}
         >
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d={anyOpen ? "M4 6l4-3 4 3M4 10l4 3 4-3" : "M4 4l4 3 4-3M4 12l4-3 4 3"} />
-          </svg>
+          {anyOpen ? <FoldIcon size={16} /> : <UnfoldIcon size={16} />}
         </ToolButton>
         <Popover>
           <PopoverTrigger title="Canvas settings" aria-label="Canvas settings" className="grid size-8 cursor-pointer place-content-center rounded-md text-fg-muted hover:bg-control-hover aria-expanded:bg-control-hover">
@@ -852,9 +854,7 @@ export function TreeView(props: TreeViewProps) {
         {hasOffsets && (
           <>
             <div className="mx-1 my-0.5 h-px bg-border-default" />
-            <ToolButton title="Reset card positions" onClick={() => { setOffsets({}); refit() }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z" /></svg>
-            </ToolButton>
+            <ToolButton title="Reset card positions" onClick={() => { setOffsets({}); refit() }}><UndoIcon size={16} /></ToolButton>
           </>
         )}
       </div>
@@ -980,10 +980,10 @@ function BranchCard(p: CardProps) {
   const { b } = p
   const merged = b.pr?.state === "merged"
   const upToDate = !b.isDefault && !b.orphan && b.ahead === 0 && b.behind === 0
-  let note = "", noteColor = "var(--borderColor-emphasis)", noteIcon = INFO_PATH
+  let note = "", noteColor = "var(--borderColor-emphasis)", NoteIcon = InfoIcon
   if (b.isDefault) note = `Base for all branches · ${p.kidsCount} direct`
   else if (b.orphan) { note = "No common commit with the default branch"; noteColor = "var(--fgColor-muted)" }
-  else if (upToDate) { note = "Up to date with the default branch"; noteColor = "var(--fgColor-success)"; noteIcon = "" }
+  else if (upToDate) { note = "Up to date with the default branch"; noteColor = "var(--fgColor-success)"; NoteIcon = CheckIcon }
 
   let chip: React.ReactNode = null
   if (hasChip(b)) {
@@ -1044,7 +1044,7 @@ function BranchCard(p: CardProps) {
           {note && (
             <div className="flex h-5 items-center gap-1.5 overflow-hidden text-xs whitespace-nowrap text-fg-muted">
               <span className="flex flex-none" style={{ color: noteColor }}>
-                {noteIcon ? <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d={noteIcon} /></svg> : <CheckIcon size={12} />}
+                <NoteIcon size={12} />
               </span>
               <span className="truncate">{note}</span>
             </div>
@@ -1069,7 +1069,7 @@ function BranchCard(p: CardProps) {
             className="absolute top-2.5 left-full flex h-5 min-w-5 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border px-1.5 text-[11px] leading-none font-semibold shadow-resting"
             style={{ borderColor: portColor, background: p.isCollapsed ? "var(--bgColor-emphasis)" : "var(--bgColor-default)", color: p.isCollapsed ? "var(--fgColor-onEmphasis)" : "var(--fgColor-muted)" }}
           >
-            {p.isCollapsed ? `+${p.kidsCount}` : "−"}
+            {p.isCollapsed ? `+${p.kidsCount}` : <DashIcon size={12} />}
           </button>
         )}
       </div>

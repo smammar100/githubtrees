@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Separate projects/caches that live next to the app but aren't part of it:
+    "branches-demo-video/**",
+    ".cache/**",
   ]),
 ]);
 

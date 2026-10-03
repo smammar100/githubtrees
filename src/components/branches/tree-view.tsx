@@ -9,13 +9,16 @@ import {
   GearIcon,
   GitBranchIcon,
   GitMergeIcon,
+  LinkIcon,
   PersonIcon,
   SearchIcon,
   TriangleDownIcon,
   XCircleFillIcon,
   XIcon,
 } from "@primer/octicons-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { toTreeHref } from "@/lib/github-url"
 import type { Branch, Person } from "@/lib/types"
 import { branchColor, githubUrl, isActive, isStale, relativeTime } from "@/lib/branch-utils"
 import type { Offsets, Prefs } from "@/lib/use-repo-store"
@@ -842,6 +845,38 @@ function BranchCard(p: CardProps) {
   )
 }
 
+/** Copies a link that opens this tree with the branch selected. Like GitHub's copy buttons, the icon turns into a check. */
+function CopyLinkButton({ fullName, branch }: { fullName: string; branch: string }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const t = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(t)
+  }, [copied])
+  const copy = async () => {
+    const [owner, repo] = fullName.split("/")
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${toTreeHref({ owner, repo, ref: branch })}`)
+      setCopied(true)
+    } catch {
+      toast.error("Couldn’t copy the link", { description: "The address bar has the same link." })
+    }
+  }
+  const label = copied ? "Copied!" : "Copy link to this branch"
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={label}
+      aria-label={label}
+      className={cn("grid size-7 flex-none cursor-pointer place-content-center rounded-md hover:bg-control-hover", copied ? "text-(--fgColor-success)" : "text-fg-muted")}
+    >
+      {copied ? <CheckIcon size={16} /> : <LinkIcon size={16} />}
+      <span role="status" className="sr-only">{copied ? "Link copied" : ""}</span>
+    </button>
+  )
+}
+
 function SelectionPanel({
   b, lineage, fullName, defaultBranch, branches, kidsOf, now, onClose, onDelete, onSetParent, onNewBranch,
 }: {
@@ -907,9 +942,13 @@ function SelectionPanel({
           <span className="text-xs text-fg-muted">{kind}</span>
           <span className="font-mono text-sm font-semibold break-all">{b.name}</span>
         </div>
-        <button type="button" onClick={onClose} title="Close" className="grid size-7 flex-none cursor-pointer place-content-center rounded-md text-fg-muted hover:bg-control-hover">
-          <XIcon size={16} />
-        </button>
+        <div className="flex flex-none items-center gap-0.5">
+          {/* Local branches exist only in this browser, so there's nothing to share. */}
+          {!b.local && <CopyLinkButton key={b.name} fullName={fullName} branch={b.name} />}
+          <button type="button" onClick={onClose} title="Close" className="grid size-7 flex-none cursor-pointer place-content-center rounded-md text-fg-muted hover:bg-control-hover">
+            <XIcon size={16} />
+          </button>
+        </div>
       </div>
       <div className="flex flex-col gap-3.5 px-4 py-3.5 text-[13px]">
         {warn && (

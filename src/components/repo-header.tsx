@@ -37,7 +37,6 @@ export function RepoHeader({
   openIssues,
   openPulls,
   viewer,
-  onNewBranch,
 }: {
   owner: string
   repo: string
@@ -45,7 +44,6 @@ export function RepoHeader({
   openIssues?: number
   openPulls?: number
   viewer?: Person | null
-  onNewBranch?: () => void
 }) {
   const full = `${owner}/${repo}`
   const gh = `https://github.com/${full}`
@@ -87,7 +85,6 @@ export function RepoHeader({
             <PlusIcon size={16} /><TriangleDownIcon size={16} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 rounded-xl p-2 shadow-floating ring-0">
-            {onNewBranch && <DropdownMenuItem className="px-2 py-1.5" onClick={onNewBranch}>New branch</DropdownMenuItem>}
             <DropdownMenuItem className="px-2 py-1.5" onClick={() => window.open(`${gh}/issues/new`, "_blank")}>New issue</DropdownMenuItem>
             <DropdownMenuItem className="px-2 py-1.5" onClick={() => window.open(`${gh}/compare`, "_blank")}>New pull request</DropdownMenuItem>
           </DropdownMenuContent>

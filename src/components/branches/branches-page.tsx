@@ -193,7 +193,7 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
 
   return (
     <div className="flex min-h-screen flex-col">
-      <RepoHeader owner={graph.owner} repo={graph.repo} isPrivate={graph.isPrivate} openIssues={graph.openIssues} openPulls={graph.openPulls} viewer={viewer} onNewBranch={() => openNew()} />
+      <RepoHeader owner={graph.owner} repo={graph.repo} isPrivate={graph.isPrivate} openIssues={graph.openIssues} openPulls={graph.openPulls} viewer={viewer} />
       <main className="mx-auto box-border w-full max-w-[1344px] px-4 pt-6 pb-16 md:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl leading-9 font-normal">Branches</h1>

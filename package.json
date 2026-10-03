@@ -1,12 +1,13 @@
 {
-  "name": "branches-tree-view",
+  "name": "githubtrees",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "theme": "node scripts/primer-theme.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -14,9 +15,7 @@
     "@primer/primitives": "^11.10.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
-    "lucide-react": "^1.51.0",
     "next": "16.3.8",
-    "next-themes": "^0.4.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",

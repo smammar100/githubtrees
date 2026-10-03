@@ -1,6 +1,6 @@
-# Netlify builds this Next.js app with its OpenNext adapter, which is applied automatically
-# once Next.js is detected during the build. Pinning the build here overrides any stale
-# dashboard settings (e.g. from before the app moved to the repository root).
+# Netlify serves this Next.js app through its Next.js runtime. It's declared explicitly because
+# Netlify only adds it automatically when it detects Next.js as the site is created, and this repo
+# had no app at its root back then. Without it the raw .next folder is published and every page 404s.
 [build]
   command = "npm run build"
   publish = ".next"
@@ -8,6 +8,9 @@
 [build.environment]
   # Next.js 16 needs Node 20.9+.
   NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 # The server reads branch data from the GitHub API. Set GITHUB_TOKEN in
 # Site configuration → Environment variables; without it GitHub's anonymous limit

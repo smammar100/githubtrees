@@ -45,6 +45,12 @@ const controlBorder = (state: "rest" | "active" | "danger") =>
 /** Width of the details panel (w-[340px]); keyboard focus keeps cards clear of it. */
 const PANEL_W = 340
 const TREE_HINT_ID = "branch-tree-keyboard-hint"
+/**
+ * How cards off the selected path (or outside a filter) recede: their colour drains while the path keeps its accent
+ * borders and wires. Not an opacity fade: the branch-name pills and PR labels only just clear WCAG AA contrast, so
+ * any fade takes them below it.
+ */
+const RECEDE: React.CSSProperties = { filter: "grayscale(1)" }
 
 /** ARIA tree-item attributes shared by branch cards and "+N more" items. */
 type TreeItemProps = {
@@ -499,7 +505,7 @@ export function TreeView(props: TreeViewProps) {
     const { P } = layout
     const wireTrans = dragging ? "none" : `d .4s ${EASE}`
     const nodeDelay = (id: string) => Math.min(300, Math.round((P[id].x / COL) * 60 + Math.max(0, P[id].y) / 24))
-    const posTrans = dragging ? "opacity .2s" : `opacity .25s, left .4s ${EASE}, top .4s ${EASE}`
+    const posTrans = dragging ? "opacity .2s, filter .2s" : `opacity .25s, filter .25s, left .4s ${EASE}, top .4s ${EASE}`
     const edgeGeo = layout.edges.map(e => ({ ...e, ...edgePath(P[e.from], P[e.to], orthogonal) }))
     const dimOthers = !!selBranch || !!ql
 
@@ -599,7 +605,7 @@ export function TreeView(props: TreeViewProps) {
                   onPointerDown={e => e.stopPropagation()}
                   onClick={() => onStubClick(it)}
                   className="absolute cursor-pointer rounded-xl outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--focus-outlineColor)"
-                  style={{ left: p.x, top: p.y, width: CARD_W, opacity: dimOthers ? 0.5 : 1, transition: posTrans }}
+                  style={{ left: p.x, top: p.y, width: CARD_W, ...(dimOthers && RECEDE), transition: posTrans }}
                 >
                   <div
                     className="relative flex h-[60px] items-center justify-between gap-2.5 rounded-xl border border-dashed border-fg-subtle bg-canvas px-4 transition-colors hover:border-fg-muted"
@@ -641,11 +647,10 @@ export function TreeView(props: TreeViewProps) {
                 hot={hot}
                 hit={hit}
                 faded={faded(b.name)}
-                dimStrong={!!selBranch || filtering}
                 stale={isStale(b, now)}
                 aw={Math.min(100, (b.ahead / maxAhead) * 100)}
                 bw={Math.min(100, (b.behind / maxBehind) * 100)}
-                trans={inDrag ? "opacity .2s" : posTrans}
+                trans={inDrag ? "opacity .2s, filter .2s" : posTrans}
                 anim={intro ? `node-in .35s ${EASE} ${nodeDelay(it.id)}ms backwards` : selected ? "ping-ring .9s ease-out 1" : "none"}
                 grabbing={inDrag && !!nodeDrag?.moved}
                 lifted={inDrag}
@@ -953,7 +958,6 @@ interface CardProps {
   hot: boolean
   hit: boolean
   faded: boolean
-  dimStrong: boolean
   stale: boolean
   aw: number
   bw: number
@@ -1004,7 +1008,7 @@ function BranchCard(p: CardProps) {
       onPointerDown={e => p.onPointerDown(e, b)}
       onClick={() => p.onClick(b.name)}
       className="absolute touch-none rounded-md outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--focus-outlineColor)"
-      style={{ left: p.x, top: p.y, width: CARD_W, opacity: p.faded ? (p.dimStrong ? 0.35 : 0.3) : 1, cursor: p.grabbing ? "grabbing" : "grab", zIndex: p.lifted ? 3 : 1, transition: p.trans }}
+      style={{ left: p.x, top: p.y, width: CARD_W, ...(p.faded && RECEDE), cursor: p.grabbing ? "grabbing" : "grab", zIndex: p.lifted ? 3 : 1, transition: p.trans }}
     >
       <div
         className="relative rounded-md border bg-canvas transition-[transform,box-shadow,border-color] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-0.5 hover:border-(--hover-border)!"

@@ -11,6 +11,20 @@ npm run dev
 
 Open http://localhost:3000 — it redirects to `/primer/react/branches`. Any public repo works at `/{owner}/{repo}/branches`, or switch from the repo name in the header.
 
+## Share any GitHub link
+
+Swap `github.com` for this site's domain in any public repository link and the tree opens on what it points at:
+
+| GitHub link | Opens |
+|---|---|
+| `/owner/repo` | the tree |
+| `/owner/repo/tree/<branch>` (also `/blob/…`, `/commits/…`) | the tree with that branch selected and centred |
+| `/owner/repo/pull/<n>` | the pull request's branch (or its base branch, for PRs from forks) |
+| `/owner/repo/compare/<base>...<head>` | the head branch |
+| `/owner/repo/branches/stale` (or `active`, `all`, `yours`) | that tab |
+
+A whole URL pasted after the domain works too (`…/https://github.com/owner/repo/pull/123`), and so does pasting any of these into the repo switcher. Selecting a branch keeps `?branch=` in the address bar, so the current URL is always a link to what you're looking at. Large repositories load their first 150 branches; a linked branch outside them is fetched and added.
+
 ## Data
 
 Branches are read live from GitHub on the server (cached in memory for 10 minutes; **Refresh** under the canvas bypasses the cache).

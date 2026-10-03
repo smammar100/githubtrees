@@ -21,6 +21,8 @@ import {
   TriangleDownIcon,
 } from "@primer/octicons-react"
 import type { Person } from "@/lib/types"
+import { parseGitHubUrl, toTreeHref } from "@/lib/github-url"
+import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, Counter } from "./branches/primitives"
@@ -129,12 +131,13 @@ function RepoSwitcher({ full, repo, isPrivate }: { full: string; repo: string; i
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState("")
-  const go = (target: string) => {
-    const m = target.trim().replace(/^https?:\/\/github\.com\//, "").match(/^([\w.-]+)\/([\w.-]+)/)
-    if (!m) return
+  const [invalid, setInvalid] = useState(false)
+  const go = (input: string) => {
+    const target = parseGitHubUrl(input)
+    if (!target) return setInvalid(true)
     setOpen(false)
     setValue("")
-    router.push(`/${m[1]}/${m[2]}/branches`)
+    router.push(toTreeHref(target))
   }
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -151,10 +154,15 @@ function RepoSwitcher({ full, repo, isPrivate }: { full: string; repo: string; i
           <input
             autoFocus
             value={value}
-            onChange={e => setValue(e.target.value)}
-            placeholder="owner/repo — any public repository"
-            className="h-8 w-full rounded-md border border-border-default px-2 font-mono text-[13px] outline-none focus:border-fg-accent focus:shadow-[0_0_0_1px_var(--fgColor-accent)]"
+            onChange={e => { setValue(e.target.value); setInvalid(false) }}
+            placeholder="owner/repo or any GitHub link"
+            aria-invalid={invalid}
+            aria-describedby="repo-switcher-hint"
+            className="h-8 w-full rounded-md border border-border-default px-2 font-mono text-[13px] outline-none focus:border-fg-accent focus:shadow-[0_0_0_1px_var(--fgColor-accent)] aria-invalid:border-(--borderColor-danger-emphasis)"
           />
+          <p id="repo-switcher-hint" className={cn("mt-1.5 text-xs", invalid ? "text-(--fgColor-danger)" : "text-fg-muted")}>
+            {invalid ? "That isn’t a GitHub repository link." : "Repository, branch, pull request or compare links all open the tree."}
+          </p>
         </form>
         <div className="px-4 pt-2 pb-1 text-xs font-semibold text-fg-muted">Primer repositories</div>
         <div className="pb-2">

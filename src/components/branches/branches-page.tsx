@@ -6,6 +6,7 @@ import { SyncIcon } from "@primer/octicons-react"
 import { toast } from "sonner"
 import type { Branch, RepoGraph } from "@/lib/types"
 import { isActive, isStale, relativeTime } from "@/lib/branch-utils"
+import { resolveRef } from "@/lib/github-url"
 import { usePrefs, useRepoStore } from "@/lib/use-repo-store"
 import { Button } from "@/components/ui/button"
 import { RepoHeader } from "@/components/repo-header"
@@ -19,14 +20,24 @@ export type View = "tree" | "list"
 
 const byUpdated = (a: Branch, b: Branch) => b.updatedAt.localeCompare(a.updatedAt)
 
-export function BranchesPage({ graph, initialView, initialTab }: { graph: RepoGraph; initialView: View; initialTab: Tab }) {
+export function BranchesPage({ graph, initialView, initialTab, initialBranch, notice }: {
+  graph: RepoGraph
+  initialView: View
+  initialTab: Tab
+  /** Branch from a shared link (may carry a trailing path, e.g. from a /tree/<branch>/<path> URL). */
+  initialBranch?: string
+  /** One-off message about the shared link, e.g. a pull request from a fork. */
+  notice?: string
+}) {
   const { fullName, defaultBranch, viewer } = graph
   const store = useRepoStore(fullName)
   const { update } = store
   const [prefs, setPrefs] = usePrefs()
   const [view, setView] = useState<View>(initialView)
   const [tab, setTab] = useState<Tab>(initialTab === "yours" && !viewer ? "overview" : initialTab)
-  const [focus, setFocus] = useState<{ name: string } | null>(null)
+  const [linked] = useState(() => (initialBranch ? resolveRef(initialBranch, graph.branches.map(b => b.name)) : null))
+  const [focus, setFocus] = useState<{ name: string } | null>(linked ? { name: linked } : null)
+  const [selected, setSelected] = useState<string | null>(linked)
   const [dialog, setDialog] = useState<{ open: boolean; source: string }>({ open: false, source: defaultBranch })
   const [now, setNow] = useState(() => new Date(graph.fetchedAt).getTime())
 
@@ -37,16 +48,35 @@ export function BranchesPage({ graph, initialView, initialTab }: { graph: RepoGr
     return () => { clearTimeout(first); clearInterval(id) }
   }, [])
 
-  // Keep ?view & ?tab in the URL (and drop the one-shot ?fresh).
+  // Say once if the shared link couldn't be followed exactly. Deferred: this effect runs before the layout's
+  // <Toaster> has subscribed, and the message reads better once the tree has settled anyway.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (notice) toast(notice, { duration: 8000 })
+      else if (initialBranch && !linked)
+        toast.warning(`No branch called “${initialBranch}” in ${fullName}`, { description: "It may have been deleted or renamed. Showing the whole tree.", duration: 8000 })
+    }, 400)
+    return () => clearTimeout(t)
+  }, [notice, initialBranch, linked, fullName])
+
+  // Keep ?view, ?tab and the selected ?branch in the URL so the address is always shareable
+  // (and drop the one-shot ?fresh and ?pr).
+  const selectedIsLocal = !!(selected && store.localBranches.some(b => b.name === selected))
   useEffect(() => {
     const url = new URL(window.location.href)
     url.searchParams.delete("fresh")
+    url.searchParams.delete("pr")
     if (view === "tree") url.searchParams.delete("view")
     else url.searchParams.set("view", view)
     if (tab === "overview") url.searchParams.delete("tab")
     else url.searchParams.set("tab", tab)
-    window.history.replaceState(null, "", url)
-  }, [view, tab])
+    // Branches created in this browser only exist here, so they aren't put in shareable links.
+    const shared = view === "tree" && selected && !selectedIsLocal ? selected : null
+    if (shared) url.searchParams.set("branch", shared)
+    else url.searchParams.delete("branch")
+    window.history.replaceState(null, "", url.toString().replace(/%2F/gi, "/"))
+    document.title = shared ? `${shared} · Branches · ${fullName}` : `Branches · ${fullName}`
+  }, [view, tab, selected, selectedIsLocal, fullName])
 
   // ---- effective branch set: server data + local branches − deletions + manual parents ----
   const deleted = useMemo(() => new Set(store.deleted), [store.deleted])
@@ -216,6 +246,7 @@ export function BranchesPage({ graph, initialView, initialTab }: { graph: RepoGr
             onSetParent={setParent}
             onNewBranch={openNew}
             focus={focus}
+            onSelect={setSelected}
           />
         )}
 

@@ -1,5 +1,6 @@
 import "server-only"
 import { execFileSync } from "node:child_process"
+import { resolveRef } from "./github-url"
 import type { Branch, CheckSummary, GraphResult, Person, PullRequestRef, RepoGraph } from "./types"
 
 const API = "https://api.github.com"
@@ -154,10 +155,42 @@ async function listBranches(full: string, max: number): Promise<ApiBranch[]> {
   return all
 }
 
-/** The default branch first, then the rest up to MAX_BRANCHES. */
-async function pickBranches(full: string, listed: ApiBranch[], def: string): Promise<ApiBranch[]> {
+/**
+ * The default branch first, then the rest up to MAX_BRANCHES, plus the branch a shared link points at
+ * (`include`) when it falls outside them.
+ */
+async function pickBranches(full: string, listed: ApiBranch[], def: string, include?: string): Promise<ApiBranch[]> {
   const defBranch = listed.find(b => b.name === def) ?? (await gh<ApiBranch>(`/repos/${full}/branches/${encodeURIComponent(def)}`))
-  return [defBranch, ...listed.filter(b => b.name !== def).slice(0, MAX_BRANCHES - 1)]
+  const picked = [defBranch, ...listed.filter(b => b.name !== def).slice(0, MAX_BRANCHES - 1)]
+  if (include && !resolveRef(include, picked.map(b => b.name))) {
+    const name = resolveRef(include, listed.map(b => b.name))
+    const extra = name ? listed.find(b => b.name === name)! : await findBranch(full, include)
+    if (extra && !picked.some(b => b.name === extra.name)) picked.push(extra)
+  }
+  return picked
+}
+
+/** Looks up the longest prefix of `ref` that names a branch (`feature/x/src/app` → `feature/x`). */
+async function findBranch(full: string, ref: string): Promise<ApiBranch | null> {
+  const parts = ref.split("/")
+  for (let n = parts.length; n >= Math.max(1, parts.length - 5); n--) {
+    try {
+      return await gh<ApiBranch>(`/repos/${full}/branches/${encodeURIComponent(parts.slice(0, n).join("/"))}`)
+    } catch (e) {
+      if (!(e instanceof GitHubError && e.status === 404)) throw e
+    }
+  }
+  return null
+}
+
+/** A pull request's head branch (null when it comes from a fork) and base branch. */
+export async function getPullHead(owner: string, repo: string, n: number): Promise<{ head: string | null; base: string; label: string } | null> {
+  try {
+    const p = await gh<{ head: { ref: string; label: string; repo: { id: number } | null }; base: { ref: string; repo: { id: number } } }>(`/repos/${owner}/${repo}/pulls/${n}`)
+    return { head: p.head.repo?.id === p.base.repo.id ? p.head.ref : null, base: p.base.ref, label: p.head.label }
+  } catch {
+    return null
+  }
 }
 
 // ─── GraphQL (with a token): ~15 requests in parallel, a few seconds cold ────
@@ -226,7 +259,7 @@ function latestPull(nodes: GqlPull[], fullName: string): PullRequestRef | null {
   return { number: p.number, title: p.title, url: p.url, base: p.baseRefName, state: p.state === "MERGED" ? "merged" : p.state === "CLOSED" ? "closed" : p.isDraft ? "draft" : "open" }
 }
 
-async function buildGraphQL(owner: string, repo: string): Promise<RepoGraph> {
+async function buildGraphQL(owner: string, repo: string, include?: string): Promise<RepoGraph> {
   type Meta = {
     viewer: { login: string; avatarUrl: string }
     repository: {
@@ -248,7 +281,7 @@ async function buildGraphQL(owner: string, repo: string): Promise<RepoGraph> {
   if (!r?.defaultBranchRef) throw new GitHubError(404, "Not Found")
   const fullName = r.nameWithOwner
   const def = r.defaultBranchRef.name
-  const picked = await pickBranches(fullName, listed, def)
+  const picked = await pickBranches(fullName, listed, def, include)
   const [o, n] = fullName.split("/")
 
   // One query per chunk: each branch's head commit, checks and PR, plus its comparison with the default branch.
@@ -366,7 +399,7 @@ async function checksFor(full: string, sha: string): Promise<CheckSummary | null
   return { passed, total, state: failed ? "failure" : pending ? "pending" : "success" }
 }
 
-async function buildRest(owner: string, repo: string): Promise<RepoGraph> {
+async function buildRest(owner: string, repo: string, include?: string): Promise<RepoGraph> {
   const authed = !!token()
 
   const repoInfo = await gh<{
@@ -390,7 +423,7 @@ async function buildRest(owner: string, repo: string): Promise<RepoGraph> {
     })(),
     gh<{ total_count: number }>(`/search/issues?q=${encodeURIComponent(`repo:${fullName} is:pr is:open`)}&per_page=1`).then(r => r.total_count).catch(() => null),
   ])
-  const picked = await pickBranches(fullName, listed, def)
+  const picked = await pickBranches(fullName, listed, def, include)
 
   // Most recently updated PR per head branch (same-repo PRs only).
   const prByHead = new Map<string, PullRequestRef>()
@@ -443,22 +476,41 @@ async function buildRest(owner: string, repo: string): Promise<RepoGraph> {
 
 // ─── Cache ───────────────────────────────────────────────────────────────────
 
-// The page and the API route are bundled separately; keep one cache per server process on globalThis.
-const store = ((globalThis as { __repoGraphs?: { cache: Map<string, { at: number; graph: RepoGraph }>; inflight: Map<string, Promise<RepoGraph>> } })
-  .__repoGraphs ??= { cache: new Map(), inflight: new Map() })
+interface CacheEntry {
+  at: number
+  graph: RepoGraph
+  /** Refs that shared links asked for and that matched no branch, so they don't trigger a rebuild every time. */
+  misses: Set<string>
+}
 
-export async function getRepoGraph(owner: string, repo: string, opts: { fresh?: boolean } = {}): Promise<GraphResult> {
+// The page and the API route are bundled separately; keep one cache per server process on globalThis.
+// The key is versioned: globalThis outlives hot reloads in development, so a changed entry shape needs a fresh store.
+const store = ((globalThis as { __repoGraphsV2?: { cache: Map<string, CacheEntry>; inflight: Map<string, Promise<RepoGraph>> } })
+  .__repoGraphsV2 ??= { cache: new Map(), inflight: new Map() })
+
+/** Whether a graph already answers a link to `ref`: the branch is in it, or the graph holds every branch anyway. */
+const covers = (entry: CacheEntry, ref?: string) =>
+  !ref || entry.misses.has(ref) || entry.graph.branches.length >= entry.graph.totalBranches || !!resolveRef(ref, entry.graph.branches.map(b => b.name))
+
+/**
+ * The branch graph for a repository. `include` is a branch a shared link points at; repositories with more than
+ * MAX_BRANCHES branches only load the first ones, so the graph is rebuilt with it added when it's missing.
+ */
+export async function getRepoGraph(owner: string, repo: string, opts: { fresh?: boolean; include?: string } = {}): Promise<GraphResult> {
   const key = `${owner}/${repo}`.toLowerCase()
   const hit = store.cache.get(key)
-  if (hit && !opts.fresh && Date.now() - hit.at < TTL_MS) return { ok: true, graph: hit.graph }
+  if (hit && !opts.fresh && Date.now() - hit.at < TTL_MS && covers(hit, opts.include)) return { ok: true, graph: hit.graph }
   try {
-    let p = store.inflight.get(key)
+    const flightKey = `${key}\n${opts.include ?? ""}`
+    let p = store.inflight.get(flightKey)
     if (!p) {
-      p = (token() ? buildGraphQL(owner, repo) : buildRest(owner, repo)).finally(() => store.inflight.delete(key))
-      store.inflight.set(key, p)
+      p = (token() ? buildGraphQL(owner, repo, opts.include) : buildRest(owner, repo, opts.include)).finally(() => store.inflight.delete(flightKey))
+      store.inflight.set(flightKey, p)
     }
     const graph = await p
-    store.cache.set(key, { at: Date.now(), graph })
+    const entry: CacheEntry = { at: Date.now(), graph, misses: new Set() }
+    if (opts.include && !covers(entry, opts.include)) entry.misses.add(opts.include)
+    store.cache.set(key, entry)
     return { ok: true, graph }
   } catch (e) {
     if (e instanceof GitHubError) {

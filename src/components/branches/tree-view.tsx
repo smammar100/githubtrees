@@ -50,8 +50,10 @@ export interface TreeViewProps {
   onDelete: (name: string) => void
   onSetParent: (name: string, parent: string | null) => void
   onNewBranch: (from?: string) => void
-  /** Select (and reveal) a branch, e.g. from the list view's "Show in tree" */
+  /** Select (and reveal) a branch, e.g. from the list view's "Show in tree" or a shared link */
   focus: { name: string } | null
+  /** Called whenever the selected branch changes (null when cleared), so the page can keep it in the URL. */
+  onSelect?: (name: string | null) => void
 }
 
 type Cam = { z: number; px: number; py: number }
@@ -162,6 +164,9 @@ export function TreeView(props: TreeViewProps) {
     const t = setTimeout(() => reveal(focus.name), 80)
     return () => clearTimeout(t)
   }, [focus, reveal])
+
+  const onSelect = props.onSelect
+  useEffect(() => { onSelect?.(sel) }, [sel, onSelect])
 
   // Wheel zoom around the cursor (non-passive so the page doesn't scroll).
   useEffect(() => {

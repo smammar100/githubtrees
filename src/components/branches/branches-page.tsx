@@ -42,11 +42,17 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
   const [selected, setSelected] = useState<string | null>(linked)
   const [now, setNow] = useState(() => new Date(graph.fetchedAt).getTime())
 
+  // Relative times render against fetchedAt on the server (and in edge-cached HTML); bring them up to date once the
+  // browser is idle, so the re-render stays out of the way of the first interaction.
   useEffect(() => {
     const tick = () => setNow(Date.now())
-    const first = setTimeout(tick, 0)
+    const first = typeof requestIdleCallback === "function" ? requestIdleCallback(tick, { timeout: 3000 }) : window.setTimeout(tick, 1000)
     const id = setInterval(tick, 60_000)
-    return () => { clearTimeout(first); clearInterval(id) }
+    return () => {
+      if (typeof cancelIdleCallback === "function") cancelIdleCallback(first)
+      else clearTimeout(first)
+      clearInterval(id)
+    }
   }, [])
 
   // Say once if the shared link couldn't be followed exactly. Deferred: this effect runs before the layout's

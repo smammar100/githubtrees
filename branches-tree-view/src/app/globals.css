@@ -9,8 +9,9 @@
 @import "@primer/primitives/dist/css/functional/size/radius.css";
 @import "@primer/primitives/dist/css/functional/size/size.css";
 @import "@primer/primitives/dist/css/functional/typography/typography.css";
-@import "@primer/primitives/dist/css/functional/themes/light.css";
-@import "@primer/primitives/dist/css/functional/themes/dark.css";
+/* github.com's "Light/Dark Protanopia & Deuteranopia" (colorblind) themes: blue for success, orange for danger and open PRs */
+@import "@primer/primitives/dist/css/functional/themes/light-colorblind.css";
+@import "@primer/primitives/dist/css/functional/themes/dark-colorblind.css";
 
 @custom-variant dark (&:where([data-color-mode="dark"], [data-color-mode="dark"] *));
 

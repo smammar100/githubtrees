@@ -55,10 +55,10 @@ export function Counter({ children, className }: { children: React.ReactNode; cl
 }
 
 const PR_STYLE: Record<PullRequestRef["state"], { color: string; border: string; Icon: typeof GitPullRequestIcon; label: string }> = {
-  open: { color: "var(--fgColor-success)", border: "var(--borderColor-success-emphasis)", Icon: GitPullRequestIcon, label: "Open" },
-  draft: { color: "var(--fgColor-muted)", border: "var(--borderColor-emphasis)", Icon: GitPullRequestDraftIcon, label: "Draft" },
-  merged: { color: "var(--fgColor-done)", border: "var(--fgColor-done)", Icon: GitMergeIcon, label: "Merged" },
-  closed: { color: "var(--fgColor-danger)", border: "var(--fgColor-danger)", Icon: GitPullRequestClosedIcon, label: "Closed" },
+  open: { color: "var(--fgColor-open)", border: "var(--borderColor-open-emphasis)", Icon: GitPullRequestIcon, label: "Open" },
+  draft: { color: "var(--fgColor-draft)", border: "var(--borderColor-draft-emphasis)", Icon: GitPullRequestDraftIcon, label: "Draft" },
+  merged: { color: "var(--fgColor-done)", border: "var(--borderColor-done-emphasis)", Icon: GitMergeIcon, label: "Merged" },
+  closed: { color: "var(--fgColor-closed)", border: "var(--borderColor-closed-emphasis)", Icon: GitPullRequestClosedIcon, label: "Closed" },
 }
 export const prStyle = (pr: PullRequestRef) => PR_STYLE[pr.state]
 

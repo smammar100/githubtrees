@@ -15,7 +15,7 @@ function Shell({ owner, repo, children }: { owner: string; repo: string; childre
           <h1 className="text-2xl leading-9 font-normal">Branches</h1>
           <Button disabled>New branch</Button>
         </div>
-        <div className="mt-6 border-b border-border-default">
+        <div className="mt-6 border-b border-border-muted">
           <UnderlineTabs tabs={[["overview", "Overview"], ["active", "Active"], ["stale", "Stale"], ["all", "All"]]} value="overview" />
         </div>
         <div

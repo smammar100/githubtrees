@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-color-mode="auto" data-light-theme="light" data-dark-theme="dark">
+    <html lang="en" data-color-mode="auto" data-light-theme="light_colorblind" data-dark-theme="dark_colorblind">
       <body>
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster position="bottom-center" />

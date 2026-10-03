@@ -170,7 +170,7 @@ export function BranchesPage({ graph, initialView, initialTab }: { graph: RepoGr
           <Button onClick={() => openNew()}>New branch</Button>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 border-b border-border-default">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 border-b border-border-muted">
           <UnderlineTabs tabs={tabs} value={tab} onChange={setTab} />
           <div>
             <Segmented<View>

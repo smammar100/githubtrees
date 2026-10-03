@@ -1,5 +1,6 @@
 "use client"
 
+import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { OpenRepoButton } from "@/components/open-repo-dialog"
@@ -30,32 +31,6 @@ function Shell({ owner, repo, children }: { owner: string; repo: string; childre
   )
 }
 
-const SKELETONS: [number, number, number][] = [[0, 230, 90], [410, 90, 150], [410, 330, 120], [820, 0, 170], [820, 150, 110], [820, 300, 150], [820, 450, 130]]
-
-export function GraphLoading({ owner, repo }: { owner: string; repo: string }) {
-  return (
-    <Shell owner={owner} repo={repo}>
-      <div className="absolute top-0 left-0 origin-top-left" style={{ transform: "translate(80px, 70px) scale(.8)" }}>
-        {SKELETONS.map(([x, y, w], i) => (
-          <div key={i} className="absolute flex w-[270px] animate-skel flex-col gap-2" style={{ left: x, top: y, animationDelay: `${i * 0.12}s` }}>
-            <div className="h-2.5 w-[110px] rounded bg-border-default" />
-            <div className="box-border flex h-24 flex-col gap-3.5 rounded-xl border border-border-default bg-canvas p-4">
-              <div className="flex items-center gap-2.5">
-                <div className="size-7 rounded-md bg-canvas-inset" />
-                <div className="h-3 rounded bg-canvas-inset" style={{ width: w }} />
-              </div>
-              <div className="h-1 rounded-sm bg-canvas-inset" />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div role="status" className="absolute top-16 left-1/2 -translate-x-1/2 rounded-[20px] border border-border-default bg-canvas px-3.5 py-2 text-[12.5px] whitespace-nowrap text-fg-default">
-        Building branch graph from {owner}/{repo} commit history…
-      </div>
-    </Shell>
-  )
-}
-
 export function GraphError({
   owner, repo, reason, message, onRetry,
 }: {
@@ -66,10 +41,11 @@ export function GraphError({
   onRetry?: () => void
 }) {
   const router = useRouter()
+  const [pending, startTransition] = useTransition()
   const title = reason === "not-found" ? "Repository not found" : reason === "rate-limited" ? "GitHub rate limit reached" : "Couldn’t build the branch graph"
   const retry = () => {
     if (onRetry) onRetry()
-    else router.replace(`/${owner}/${repo}/branches?fresh=${Date.now()}`)
+    else startTransition(() => router.replace(`/${owner}/${repo}/branches?fresh=${Date.now()}`))
   }
   return (
     <Shell owner={owner} repo={repo}>
@@ -79,9 +55,9 @@ export function GraphError({
         <span className="text-[13px] text-pretty text-fg-muted">{message}</span>
         <div className="mt-1.5 flex gap-2">
           {reason === "not-found" ? (
-            <Button onClick={() => router.push("/primer/react/branches")}>Open primer/react</Button>
+            <Button disabled={pending} onClick={() => startTransition(() => router.push("/primer/react/branches"))}>{pending ? "Opening…" : "Open primer/react"}</Button>
           ) : (
-            <Button onClick={retry}>Try again</Button>
+            <Button disabled={pending} onClick={retry}>{pending ? "Retrying…" : "Try again"}</Button>
           )}
           <a
             href={`https://github.com/${owner}/${repo}/branches`}

@@ -81,7 +81,6 @@
 
   --animate-panel-in: panel-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   --animate-fade-in: fade-in 0.3s ease backwards;
-  --animate-skel: skel 1.4s ease-in-out infinite;
 }
 
 :root {
@@ -149,7 +148,6 @@
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fgColor-accent) 45%, transparent), var(--shadow-floating-small); }
   100% { box-shadow: 0 0 0 12px transparent, var(--shadow-floating-small); }
 }
-@keyframes skel { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

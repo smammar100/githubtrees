@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import Link from "next/link"
+import dynamic from "next/dynamic"
+import Link, { useLinkStatus } from "next/link"
 import { ListUnorderedIcon, SyncIcon, WorkflowIcon } from "@primer/octicons-react"
 import { toast } from "sonner"
 import type { Branch, RepoGraph } from "@/lib/types"
@@ -10,12 +11,14 @@ import { resolveRef } from "@/lib/github-url"
 import { usePrefs, useRepoStore } from "@/lib/use-repo-store"
 import { OpenRepoButton } from "@/components/open-repo-dialog"
 import { RepoHeader } from "@/components/repo-header"
-import { ListView } from "./list-view"
 import { UnderlineTabs } from "./primitives"
 import { Segmented, TreeLegend, TreeView } from "./tree-view"
 
 export type Tab = "overview" | "yours" | "active" | "stale" | "all"
 export type View = "tree" | "list"
+
+// The tree is the default view, so the list's code loads only when it's shown.
+const ListView = dynamic(() => import("./list-view").then(m => m.ListView))
 
 const byUpdated = (a: Branch, b: Branch) => b.updatedAt.localeCompare(a.updatedAt)
 
@@ -229,12 +232,23 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
               <a href={graph.htmlUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">{fullName}</a> · graph built from {graph.commitsScanned.toLocaleString()} commits · fetched {relativeTime(graph.fetchedAt, now)}
             </span>
             <Link href={refreshHref} prefetch={false} className="inline-flex items-center gap-1">
-              <SyncIcon size={12} />Refresh
+              <RefreshLabel />
             </Link>
           </p>
           {view === "tree" && <TreeLegend />}
         </div>
       </main>
     </div>
+  )
+}
+
+/** Rebuilding the graph takes a few seconds; the icon spins until the fresh page arrives. */
+function RefreshLabel() {
+  const { pending } = useLinkStatus()
+  return (
+    <>
+      <SyncIcon size={12} className={pending ? "animate-spin" : undefined} />
+      {pending ? "Refreshing…" : "Refresh"}
+    </>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
+import { useState, useTransition } from "react"
+import Link, { useLinkStatus } from "next/link"
 import { useRouter } from "next/navigation"
 import {
   CodeIcon,
@@ -125,17 +125,23 @@ export function RepoHeader({
   )
 }
 
+/** Shown inside a Link while the page it opens is being built. */
+function OpeningHint() {
+  const { pending } = useLinkStatus()
+  return pending ? <span role="status" className="text-xs text-fg-muted">Opening…</span> : null
+}
+
 function RepoSwitcher({ full, repo, isPrivate }: { full: string; repo: string; isPrivate: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState("")
   const [invalid, setInvalid] = useState(false)
+  // The popover stays open while the new tree is built; landing on another repository remounts the header.
+  const [pending, startTransition] = useTransition()
   const go = (input: string) => {
     const target = parseGitHubUrl(input)
     if (!target) return setInvalid(true)
-    setOpen(false)
-    setValue("")
-    router.push(toTreeHref(target))
+    startTransition(() => router.push(toTreeHref(target)))
   }
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -158,24 +164,24 @@ function RepoSwitcher({ full, repo, isPrivate }: { full: string; repo: string; i
             aria-describedby="repo-switcher-hint"
             className="h-8 w-full rounded-md border border-border-default px-2 font-mono text-[13px] outline-none focus:border-fg-accent focus:shadow-[0_0_0_1px_var(--fgColor-accent)] aria-invalid:border-(--borderColor-danger-emphasis)"
           />
-          <p id="repo-switcher-hint" className={cn("mt-1.5 text-xs", invalid ? "text-(--fgColor-danger)" : "text-fg-muted")}>
-            {invalid ? "That isn’t a GitHub repository link." : "Repository, branch, pull request or compare links all open the tree."}
+          <p id="repo-switcher-hint" role="status" className={cn("mt-1.5 text-xs", invalid ? "text-(--fgColor-danger)" : "text-fg-muted")}>
+            {invalid ? "That isn’t a GitHub repository link." : pending ? "Building the tree…" : "Repository, branch, pull request or compare links all open the tree."}
           </p>
         </form>
         <div className="px-4 pt-2 pb-1 text-xs font-semibold text-fg-muted">Primer repositories</div>
         <div className="pb-2">
-          {PRIMER_REPOS.map(r => (
-            <Link
-              key={r}
-              href={`/${r}/branches`}
-              onClick={() => setOpen(false)}
-              className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-fg-default hover:bg-control-hover hover:no-underline hover:text-fg-default"
-            >
-              <span className="flex text-fg-muted"><RepoIcon size={16} /></span>
-              <span className="flex-1">{r}</span>
-              {r.toLowerCase() === full.toLowerCase() && <span className="text-xs text-fg-muted">current</span>}
-            </Link>
-          ))}
+          {PRIMER_REPOS.map(r => {
+            const row = "mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-fg-default"
+            const label = <><span className="flex text-fg-muted"><RepoIcon size={16} /></span><span className="flex-1">{r}</span></>
+            return r.toLowerCase() === full.toLowerCase() ? (
+              <div key={r} className={row}>{label}<span className="text-xs text-fg-muted">current</span></div>
+            ) : (
+              <Link key={r} href={`/${r}/branches`} className={cn(row, "hover:bg-control-hover hover:no-underline hover:text-fg-default")}>
+                {label}
+                <OpeningHint />
+              </Link>
+            )
+          })}
         </div>
       </PopoverContent>
     </Popover>

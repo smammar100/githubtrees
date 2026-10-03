@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { RepoIcon } from "@primer/octicons-react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -31,15 +30,28 @@ function Form({ onDone }: { onDone: () => void }) {
   const router = useRouter()
   const [value, setValue] = useState("")
   const [invalid, setInvalid] = useState(false)
+  // Building a tree for a repository nobody has opened recently takes a few seconds, so the dialog stays up,
+  // saying which one is on its way, until the new page has rendered.
+  const [opening, setOpening] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+  const started = useRef(false)
+  useEffect(() => {
+    if (pending) started.current = true
+    // Opening the repository already on screen doesn't remount this dialog, so close it here.
+    else if (started.current) onDone()
+  }, [pending, onDone])
   // The domain-swap tip names whichever host this is running on (localhost in development).
   const [host] = useState(() => window.location.host)
 
+  const go = (target: NonNullable<ReturnType<typeof parseGitHubUrl>>) => {
+    setOpening(`${target.owner}/${target.repo}`)
+    startTransition(() => router.push(toTreeHref(target)))
+  }
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     const target = parseGitHubUrl(value)
-    if (!target) return setInvalid(true)
-    onDone()
-    router.push(toTreeHref(target))
+    if (target) go(target)
+    else setInvalid(true)
   }
 
   return (
@@ -63,24 +75,32 @@ function Form({ onDone }: { onDone: () => void }) {
             aria-describedby="open-repo-hint"
             className="h-8 rounded-md border border-border-default px-3 font-mono text-sm outline-none focus:border-fg-accent focus:shadow-[0_0_0_1px_var(--fgColor-accent)] aria-invalid:border-fg-danger"
           />
-          <span id="open-repo-hint" className={invalid ? "text-xs text-fg-danger" : "text-xs text-fg-muted"}>
-            {invalid ? "That isn’t a GitHub repository link." : "Repository, branch, pull request and compare links all work."}
+          <span id="open-repo-hint" role="status" className={invalid ? "text-xs text-fg-danger" : "text-xs text-fg-muted"}>
+            {invalid
+              ? "That isn’t a GitHub repository link."
+              : pending
+                ? `Building the tree for ${opening}…`
+                : "Repository, branch, pull request and compare links all work."}
           </span>
         </div>
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-semibold">Or try one</span>
           <div className="grid grid-cols-2 gap-2">
-            {SUGGESTIONS.map(r => (
-              <Link
-                key={r}
-                href={`/${r}/branches`}
-                onClick={onDone}
-                className="flex h-8 min-w-0 items-center gap-1.5 rounded-md border border-border-default px-2.5 font-mono text-xs text-fg-default hover:bg-control-hover hover:no-underline hover:text-fg-default"
-              >
-                <span className="flex text-fg-muted"><RepoIcon size={12} /></span>
-                {r}
-              </Link>
-            ))}
+            {SUGGESTIONS.map(r => {
+              const [owner, repo] = r.split("/")
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => go({ owner, repo })}
+                  className="flex h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-border-default px-2.5 font-mono text-xs text-fg-default hover:bg-control-hover disabled:cursor-default disabled:opacity-60"
+                >
+                  <span className="flex text-fg-muted"><RepoIcon size={12} /></span>
+                  {r}
+                </button>
+              )
+            })}
           </div>
         </div>
         <p className="text-xs text-fg-muted">
@@ -89,7 +109,7 @@ function Form({ onDone }: { onDone: () => void }) {
       </div>
       <DialogFooter className="mx-0 mb-0 border-t border-border-default bg-canvas px-4 py-3">
         <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
-        <Button type="submit">Open tree</Button>
+        <Button type="submit" disabled={pending}>{pending ? "Opening…" : "Open tree"}</Button>
       </DialogFooter>
     </form>
   )

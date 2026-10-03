@@ -10,7 +10,6 @@ import { isActive, isStale, relativeTime } from "@/lib/branch-utils"
 import { resolveRef } from "@/lib/github-url"
 import { usePrefs, useRepoStore } from "@/lib/use-repo-store"
 import { OpenRepoButton } from "@/components/open-repo-dialog"
-import { RepoHeader } from "@/components/repo-header"
 import { UnderlineTabs } from "./primitives"
 import { Segmented, TreeLegend, TreeView } from "./tree-view"
 
@@ -175,76 +174,73 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
   const refreshHref = `?fresh=${now}${view === "list" ? "&view=list" : ""}${tab !== "overview" ? `&tab=${tab}` : ""}`
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <RepoHeader owner={graph.owner} repo={graph.repo} isPrivate={graph.isPrivate} openIssues={graph.openIssues} openPulls={graph.openPulls} viewer={viewer} />
-      <main className="mx-auto box-border w-full max-w-[1344px] px-4 pt-6 pb-16 md:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl leading-9 font-normal">Branches</h1>
-          <OpenRepoButton />
-        </div>
+    <main className="mx-auto box-border w-full max-w-[1344px] px-4 pt-6 pb-16 md:px-6 lg:px-8">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl leading-9 font-normal">Branches</h1>
+        <OpenRepoButton />
+      </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 border-b border-border-muted">
-          <UnderlineTabs tabs={tabs} value={tab} onChange={setTab} />
-          <Segmented<View>
-            value={view}
-            onChange={v => { setView(v); if (v === "list") setFocus(null) }}
-            options={[
-              ["list", <><ListUnorderedIcon size={16} className="text-fg-muted" />List</>],
-              ["tree", <><WorkflowIcon size={16} className="text-fg-muted" />Tree</>],
-            ]}
-          />
-        </div>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 border-b border-border-muted">
+        <UnderlineTabs tabs={tabs} value={tab} onChange={setTab} />
+        <Segmented<View>
+          value={view}
+          onChange={v => { setView(v); if (v === "list") setFocus(null) }}
+          options={[
+            ["list", <><ListUnorderedIcon size={16} className="text-fg-muted" />List</>],
+            ["tree", <><WorkflowIcon size={16} className="text-fg-muted" />Tree</>],
+          ]}
+        />
+      </div>
 
-        {view === "list" ? (
-          <ListView
-            fullName={fullName}
-            defaultBranch={defaultBranch}
-            tab={tab}
-            setTab={setTab}
-            now={now}
-            sections={listSections}
-            deleted={deleted}
-            onDelete={remove}
-            onRestore={restore}
-            onShowInTree={name => { setFocus({ name }); setView("tree") }}
-          />
-        ) : (
-          <TreeView
-            fullName={fullName}
-            defaultBranch={defaultBranch}
-            branches={branches}
-            byName={byName}
-            kidsOf={kidsOf}
-            viewer={viewer}
-            tab={tab}
-            now={now}
-            offsets={store.offsets}
-            setOffsets={offsets => update(() => ({ offsets }))}
-            prefs={prefs}
-            setPrefs={setPrefs}
-            isYours={isYours}
-            onDelete={remove}
-            onSetParent={setParent}
-            focus={focus}
-            onSelect={setSelected}
-          />
-        )}
+      {view === "list" ? (
+        <ListView
+          fullName={fullName}
+          defaultBranch={defaultBranch}
+          tab={tab}
+          setTab={setTab}
+          now={now}
+          sections={listSections}
+          deleted={deleted}
+          onDelete={remove}
+          onRestore={restore}
+          onShowInTree={name => { setFocus({ name }); setView("tree") }}
+        />
+      ) : (
+        <TreeView
+          fullName={fullName}
+          defaultBranch={defaultBranch}
+          branches={branches}
+          byName={byName}
+          kidsOf={kidsOf}
+          viewer={viewer}
+          tab={tab}
+          now={now}
+          offsets={store.offsets}
+          setOffsets={offsets => update(() => ({ offsets }))}
+          prefs={prefs}
+          setPrefs={setPrefs}
+          isYours={isYours}
+          onDelete={remove}
+          onSetParent={setParent}
+          focus={focus}
+          onSelect={setSelected}
+        />
+      )}
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-          <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted">
-            <span>
-              {graph.branches.length < graph.totalBranches ? `${graph.branches.length} of ${graph.totalBranches}` : graph.branches.length} branches from{" "}
-              {/* Underlined because, inside a sentence, colour alone doesn't mark a link (WCAG 1.4.1). */}
-              <a href={graph.htmlUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">{fullName}</a> · graph built from {graph.commitsScanned.toLocaleString()} commits · fetched {relativeTime(graph.fetchedAt, now)}
-            </span>
-            <Link href={refreshHref} prefetch={false} className="inline-flex items-center gap-1">
-              <RefreshLabel />
-            </Link>
-          </p>
-          {view === "tree" && <TreeLegend />}
-        </div>
-      </main>
-    </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted">
+          <span>
+            {graph.branches.length < graph.totalBranches ? `${graph.branches.length} of ${graph.totalBranches}` : graph.branches.length} branches from{" "}
+            {/* Underlined because, inside a sentence, colour alone doesn't mark a link (WCAG 1.4.1). */}
+            <a href={graph.htmlUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">{fullName}</a> · graph built from {graph.commitsScanned.toLocaleString()} commits · fetched {relativeTime(graph.fetchedAt, now)}
+          </span>
+          <Link href={refreshHref} prefetch={false} className="inline-flex items-center gap-1">
+            <RefreshLabel />
+          </Link>
+        </p>
+        {view === "tree" && <TreeLegend />}
+      </div>
+    </main>
   )
 }
 

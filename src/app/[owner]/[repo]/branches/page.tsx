@@ -3,6 +3,7 @@ import { getPullHead, getRepoGraph } from "@/lib/github"
 import { resolveRef } from "@/lib/github-url"
 import { BranchesPage, type Tab, type View } from "@/components/branches/branches-page"
 import { GraphError } from "@/components/branches/graph-states"
+import { RepoHeader } from "@/components/repo-header"
 
 const TABS: Tab[] = ["overview", "yours", "active", "stale", "all"]
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
@@ -37,7 +38,21 @@ export default async function Page(props: PageProps<"/[owner]/[repo]/branches">)
   const view: View = sp.view === "list" && !branch ? "list" : "tree"
 
   const result = await getRepoGraph(owner, repo, { fresh: sp.fresh !== undefined, include: branch })
-  if (!result.ok) return <GraphError owner={owner} repo={repo} reason={result.reason} message={result.message} />
-  // Keyed by the linked branch too, so following another link into the same repository re-focuses the tree.
-  return <BranchesPage key={`${result.graph.fullName}\n${branch ?? ""}\n${notice ?? ""}`} graph={result.graph} initialView={view} initialTab={tab} initialBranch={branch} notice={notice} />
+  if (!result.ok) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <RepoHeader key={`${owner}/${repo}`} owner={owner} repo={repo} />
+        <GraphError owner={owner} repo={repo} reason={result.reason} message={result.message} />
+      </div>
+    )
+  }
+  const { graph } = result
+  return (
+    <div className="flex min-h-screen flex-col">
+      {/* Keyed so the header's popovers reset when another repository opens. */}
+      <RepoHeader key={graph.fullName} owner={graph.owner} repo={graph.repo} isPrivate={graph.isPrivate} openIssues={graph.openIssues} openPulls={graph.openPulls} viewer={graph.viewer} />
+      {/* Keyed by the linked branch too, so following another link into the same repository re-focuses the tree. */}
+      <BranchesPage key={`${graph.fullName}\n${branch ?? ""}\n${notice ?? ""}`} graph={graph} initialView={view} initialTab={tab} initialBranch={branch} notice={notice} />
+    </div>
+  )
 }

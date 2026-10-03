@@ -4,30 +4,26 @@ import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { OpenRepoButton } from "@/components/open-repo-dialog"
-import { RepoHeader } from "@/components/repo-header"
 import { cn } from "@/lib/utils"
 import { UnderlineTabs } from "./primitives"
 
-function Shell({ owner, repo, children }: { owner: string; repo: string; children: React.ReactNode }) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      <RepoHeader owner={owner} repo={repo} />
-      <main className="mx-auto box-border w-full max-w-[1344px] px-4 pt-6 pb-16 md:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl leading-9 font-normal">Branches</h1>
-          <OpenRepoButton />
-        </div>
-        <div className="mt-6 border-b border-border-muted">
-          <UnderlineTabs tabs={[["overview", "Overview"], ["active", "Active"], ["stale", "Stale"], ["all", "All"]]} value="overview" />
-        </div>
-        <div
-          className="relative mt-4 h-[680px] overflow-hidden rounded-[14px] border border-border-default bg-canvas-subtle"
-          style={{ backgroundImage: "radial-gradient(var(--borderColor-default) 1px, transparent 1px)", backgroundSize: "14px 14px" }}
-        >
-          {children}
-        </div>
-      </main>
-    </div>
+    <main className="mx-auto box-border w-full max-w-[1344px] px-4 pt-6 pb-16 md:px-6 lg:px-8">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl leading-9 font-normal">Branches</h1>
+        <OpenRepoButton />
+      </div>
+      <div className="mt-6 border-b border-border-muted">
+        <UnderlineTabs tabs={[["overview", "Overview"], ["active", "Active"], ["stale", "Stale"], ["all", "All"]]} value="overview" />
+      </div>
+      <div
+        className="relative mt-4 h-[680px] overflow-hidden rounded-[14px] border border-border-default bg-canvas-subtle"
+        style={{ backgroundImage: "radial-gradient(var(--borderColor-default) 1px, transparent 1px)", backgroundSize: "14px 14px" }}
+      >
+        {children}
+      </div>
+    </main>
   )
 }
 
@@ -48,7 +44,7 @@ export function GraphError({
     else startTransition(() => router.replace(`/${owner}/${repo}/branches?fresh=${Date.now()}`))
   }
   return (
-    <Shell owner={owner} repo={repo}>
+    <Shell>
       <div className="absolute top-1/2 left-1/2 box-border flex w-[380px] max-w-[calc(100%-40px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-2.5 rounded-[14px] border border-border-default bg-canvas p-[22px] shadow-floating-lg">
         <span className="grid size-8 place-content-center rounded-[9px] bg-danger-subtle font-semibold text-fg-danger">!</span>
         <span className="text-[15px] font-semibold">{title}</span>

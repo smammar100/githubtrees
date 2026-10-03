@@ -41,7 +41,6 @@ Branches are read live from GitHub on the server (cached in memory for 10 minute
 
 Nothing is ever written to GitHub. These are saved in this browser's localStorage per repository:
 
-- **New branch** — creates a draft branch from any source branch.
 - **Delete / Restore** — hides a branch (children re-attach to the nearest surviving ancestor).
 - **Set parent manually** — overrides an inferred parent.
 - Card positions after dragging, plus canvas settings (wire style, branches per group, fork labels).

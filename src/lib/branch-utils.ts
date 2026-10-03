@@ -1,6 +1,6 @@
 import type { Branch, Person } from "./types"
 
-export const STALE_MS = 90 * 24 * 60 * 60 * 1000
+const STALE_MS = 90 * 24 * 60 * 60 * 1000
 
 export const isStale = (b: Branch, now: number) => !b.isDefault && now - new Date(b.updatedAt).getTime() > STALE_MS
 export const isActive = (b: Branch, now: number) => !b.isDefault && !isStale(b, now)

@@ -1,4 +1,4 @@
-export type PRState = "open" | "draft" | "merged" | "closed"
+type PRState = "open" | "draft" | "merged" | "closed"
 
 export interface Person {
   login: string
@@ -26,15 +26,13 @@ export interface CheckSummary {
  * - `pr`: the branch's pull request targets the parent (known)
  * - `ancestry`: the parent's tip is contained in this branch's unique commits (inferred)
  * - `manual`: set by the viewer on this device
- * - `created`: branch was created from it in this browser
  */
-export type ParentSource = "default" | "pr" | "ancestry" | "manual" | "created"
+type ParentSource = "default" | "pr" | "ancestry" | "manual"
 
 export interface Branch {
   name: string
   sha: string
   isDefault: boolean
-  isProtected: boolean
   parent: string | null
   parentSource: ParentSource | null
   /** PR base branch that no longer exists; the branch is shown attached to the default branch. */
@@ -49,8 +47,6 @@ export interface Branch {
   author: Person
   pr: PullRequestRef | null
   checks: CheckSummary | null
-  /** Created in this browser via "New branch", never pushed */
-  local?: boolean
 }
 
 export interface RepoGraph {

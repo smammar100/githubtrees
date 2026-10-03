@@ -1,13 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import type { Branch } from "./types"
 
 export type Offsets = Record<string, { dx: number; dy: number }>
 
-export interface RepoLocalState {
-  /** Branches created with "New branch" in this browser (never pushed). */
-  localBranches: Branch[]
+interface RepoLocalState {
   /** Branches deleted in this browser; restorable. */
   deleted: string[]
   /** Parents chosen with "Set parent manually". */
@@ -22,8 +19,8 @@ export interface Prefs {
   collapseAfter: number
 }
 
-const EMPTY: RepoLocalState = { localBranches: [], deleted: [], parentOverrides: {}, offsets: {} }
-export const DEFAULT_PREFS: Prefs = { wireStyle: "curved", wireLabels: true, collapseAfter: 6 }
+const EMPTY: RepoLocalState = { deleted: [], parentOverrides: {}, offsets: {} }
+const DEFAULT_PREFS: Prefs = { wireStyle: "curved", wireLabels: true, collapseAfter: 6 }
 
 function read<T>(key: string, fallback: T): T {
   try {

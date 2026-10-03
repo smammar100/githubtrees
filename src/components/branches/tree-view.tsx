@@ -64,7 +64,6 @@ const PR_WORD = { open: "open", draft: "draft", merged: "merged", closed: "close
 function treeLabel(b: Branch, now: number, kids: number, stale: boolean): string {
   const parts = [b.name]
   if (b.isDefault) parts.push("default branch")
-  else if (b.local) parts.push("created in this browser, not pushed")
   else if (b.orphan) parts.push("no shared history with the default branch")
   else parts.push(b.ahead === 0 && b.behind === 0 ? "up to date with the default branch" : `${b.ahead} ahead, ${b.behind} behind`)
   if (stale) parts.push("stale")
@@ -77,7 +76,7 @@ function treeLabel(b: Branch, now: number, kids: number, stale: boolean): string
   return parts.join(", ")
 }
 
-export interface TreeViewProps {
+interface TreeViewProps {
   fullName: string
   defaultBranch: string
   branches: Branch[]
@@ -93,7 +92,6 @@ export interface TreeViewProps {
   isYours: (b: Branch) => boolean
   onDelete: (name: string) => void
   onSetParent: (name: string, parent: string | null) => void
-  onNewBranch: (from?: string) => void
   /** Select (and reveal) a branch, e.g. from the list view's "Show in tree" or a shared link */
   focus: { name: string } | null
   /** Called whenever the selected branch changes (null when cleared), so the page can keep it in the URL. */
@@ -101,10 +99,10 @@ export interface TreeViewProps {
 }
 
 type Cam = { z: number; px: number; py: number }
-type NodeDrag = { id: string; x: number; y: number; base: Offsets; ids: string[]; moved: boolean }
+type NodeDrag = { x: number; y: number; base: Offsets; ids: string[]; moved: boolean }
 
 export function TreeView(props: TreeViewProps) {
-  const { branches, byName, kidsOf, viewer, tab, now, offsets, setOffsets, prefs, setPrefs, isYours, defaultBranch, fullName, onNewBranch } = props
+  const { branches, byName, kidsOf, viewer, tab, now, offsets, setOffsets, prefs, setPrefs, isYours, defaultBranch, fullName } = props
 
   const [sel, setSel] = useState<string | null>(props.focus?.name ?? null)
   /** The tree item holding keyboard focus (roving tabindex). Separate from the selection, which opens the panel. */
@@ -199,7 +197,7 @@ export function TreeView(props: TreeViewProps) {
         setCamAnim(true)
         setCam(c => {
           const z = Math.max(c.z, 0.85)
-          return { z, px: (r.width - 340) / 2 - (pos.x + CARD_W / 2) * z, py: r.height / 2 - (pos.y + pos.h / 2) * z }
+          return { z, px: (r.width - PANEL_W) / 2 - (pos.x + CARD_W / 2) * z, py: r.height / 2 - (pos.y + pos.h / 2) * z }
         })
       }, 60)
     },
@@ -408,7 +406,7 @@ export function TreeView(props: TreeViewProps) {
         walk(b.name)
       }
       setCamAnim(false)
-      setNodeDrag({ id: b.name, x: e.clientX, y: e.clientY, base: { ...offsets }, ids, moved: false })
+      setNodeDrag({ x: e.clientX, y: e.clientY, base: { ...offsets }, ids, moved: false })
     },
     [kidsOf, offsets],
   )
@@ -482,11 +480,8 @@ export function TreeView(props: TreeViewProps) {
   useLayoutEffect(() => { treeKeyDown.current = onTreeKeyDown })
 
   // When the focused item disappears (its group was expanded into branches), hand focus to its stand-in.
-  const treeRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!activeId || !treeRef.current) return
-    const focused = document.activeElement
-    if (focused === document.body && active?.startsWith("stub:") && active !== activeId) focusItem(activeId)
+    if (activeId && active?.startsWith("stub:") && active !== activeId && document.activeElement === document.body) focusItem(activeId)
   }, [activeId, active, focusItem])
 
   const onItemFocus = useCallback(
@@ -549,7 +544,7 @@ export function TreeView(props: TreeViewProps) {
       if (b.parentSource === "ancestry") labels.push({ key: b.name, x: e.mx, y: e.my, text: "inferred parent", color: "var(--fgColor-attention)", border: "var(--borderColor-attention-muted)" })
       else if (b.parentDeleted) labels.push({ key: b.name, x: e.mx, y: e.my, text: `via deleted ${b.parentDeleted}`, color: "var(--fgColor-attention)", border: "var(--borderColor-attention-muted)" })
       else if (hot && prefs.wireLabels)
-        labels.push({ key: b.name, x: e.mx, y: e.my, text: b.parentSource === "manual" ? "parent set manually" : `${b.parentSource === "created" ? "created" : "forked"} ${relativeTime(b.forkedAt, now)}`, color: "var(--fgColor-accent)", border: "var(--borderColor-accent-muted)" })
+        labels.push({ key: b.name, x: e.mx, y: e.my, text: b.parentSource === "manual" ? "parent set manually" : `forked ${relativeTime(b.forkedAt, now)}`, color: "var(--fgColor-accent)", border: "var(--borderColor-accent-muted)" })
     })
 
     // Each item's place in the tree for assistive tech, plus the single roving tab stop.
@@ -589,95 +584,93 @@ export function TreeView(props: TreeViewProps) {
             </div>
           ))}
         </div>
-        <div ref={treeRef} role="tree" aria-label={`Branches in ${fullName}`} aria-describedby={TREE_HINT_ID} onKeyDown={e => treeKeyDown.current(e)}>
-        {nav.order.map(id => nav.items.get(id)!).map(it => {
-          const p = P[it.id]
-          if (it.kind === "stub") {
-            const total = kidsOf(it.parent).length
-            const label =
-              it.mode === "fewer" ? `Show fewer branches under ${it.parent}` : it.mode === "collapsed" ? `Show ${total} hidden branches under ${it.parent}` : `Show ${it.count} more branches under ${it.parent}`
-            return (
-              <div
-                key={it.id}
-                {...treeItem(it.id, label)}
-                aria-selected={false}
-                onFocus={e => onItemFocus(e, it.id)}
-                onPointerDown={e => e.stopPropagation()}
-                onClick={() => onStubClick(it)}
-                className="absolute cursor-pointer rounded-xl outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--focus-outlineColor)"
-                style={{ left: p.x, top: p.y, width: CARD_W, opacity: dimOthers ? 0.5 : 1, transition: posTrans }}
-              >
+        <div role="tree" aria-label={`Branches in ${fullName}`} aria-describedby={TREE_HINT_ID} onKeyDown={e => treeKeyDown.current(e)}>
+          {nav.order.map(id => {
+            const it = nav.items.get(id)!
+            const p = P[it.id]
+            if (it.kind === "stub") {
+              const total = kidsOf(it.parent).length
+              const label =
+                it.mode === "fewer" ? `Show fewer branches under ${it.parent}` : it.mode === "collapsed" ? `Show ${total} hidden branches under ${it.parent}` : `Show ${it.count} more branches under ${it.parent}`
+              return (
                 <div
-                  className="relative flex h-[60px] items-center justify-between gap-2.5 rounded-xl border border-dashed border-fg-subtle bg-canvas px-4 transition-colors hover:border-fg-muted"
-                  style={{ animation: `node-in .4s ${EASE} ${intro ? nodeDelay(it.id) : 0}ms backwards` }}
+                  key={it.id}
+                  {...treeItem(it.id, label)}
+                  aria-selected={false}
+                  onFocus={e => onItemFocus(e, it.id)}
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={() => onStubClick(it)}
+                  className="absolute cursor-pointer rounded-xl outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--focus-outlineColor)"
+                  style={{ left: p.x, top: p.y, width: CARD_W, opacity: dimOthers ? 0.5 : 1, transition: posTrans }}
                 >
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-[13px] font-medium">{it.mode === "fewer" ? "Show fewer" : `+${it.count} more ${it.count === 1 ? "branch" : "branches"}`}</span>
-                    <span className="text-[11.5px] text-fg-muted">
-                      {it.mode === "collapsed" ? `Collapsed · ${total} total` : it.mode === "fewer" ? `Showing all ${total}` : "Sorted by last update"}
+                  <div
+                    className="relative flex h-[60px] items-center justify-between gap-2.5 rounded-xl border border-dashed border-fg-subtle bg-canvas px-4 transition-colors hover:border-fg-muted"
+                    style={{ animation: `node-in .4s ${EASE} ${intro ? nodeDelay(it.id) : 0}ms backwards` }}
+                  >
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-[13px] font-medium">{it.mode === "fewer" ? "Show fewer" : `+${it.count} more ${it.count === 1 ? "branch" : "branches"}`}</span>
+                      <span className="text-[11.5px] text-fg-muted">
+                        {it.mode === "collapsed" ? `Collapsed · ${total} total` : it.mode === "fewer" ? `Showing all ${total}` : "Sorted by last update"}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-xs font-medium whitespace-nowrap text-fg-accent">{it.mode === "fewer" ? "Collapse" : "Show all"}</span>
-                  <span className="absolute top-[25px] -left-1.5 size-2.5 rounded-full border-[1.5px] border-fg-subtle bg-canvas" />
+                    <span className="text-xs font-medium whitespace-nowrap text-fg-accent">{it.mode === "fewer" ? "Collapse" : "Show all"}</span>
+                    <span className="absolute top-[25px] -left-1.5 size-2.5 rounded-full border-[1.5px] border-fg-subtle bg-canvas" />
+                  </div>
                 </div>
-              </div>
+              )
+            }
+            if (it.kind === "ghost") return null
+            const b = it.b
+            const selected = sel === b.name
+            const hot = !!selBranch && pathIds.includes(b.name)
+            const hit = filtering && hits.includes(b)
+            const inDrag = !!dragIds?.includes(b.name)
+            const kidsCount = kidsOf(b.name).length
+            return (
+              <BranchCard
+                key={it.id}
+                item={treeItem(b.name, treeLabel(b, now, kidsCount, isStale(b, now)), kidsCount ? !collapsed[b.name] : undefined)}
+                onFocus={onItemFocus}
+                b={b}
+                x={p.x}
+                y={p.y}
+                now={now}
+                color={branchColor(b)}
+                kidsCount={kidsCount}
+                parentName={b.parent}
+                isCollapsed={!!collapsed[b.name]}
+                selected={selected}
+                hot={hot}
+                hit={hit}
+                faded={faded(b.name)}
+                dimStrong={!!selBranch || filtering}
+                stale={isStale(b, now)}
+                aw={Math.min(100, (b.ahead / maxAhead) * 100)}
+                bw={Math.min(100, (b.behind / maxBehind) * 100)}
+                trans={inDrag ? "opacity .2s" : posTrans}
+                anim={intro ? `node-in .5s ${EASE} ${nodeDelay(it.id)}ms backwards` : selected ? "ping-ring .9s ease-out 1" : "none"}
+                grabbing={inDrag && !!nodeDrag?.moved}
+                lifted={inDrag}
+                onPointerDown={startNodeDrag}
+                onClick={onCardClick}
+                onToggle={toggleCollapsed}
+              />
             )
-          }
-          if (it.kind === "ghost") return null
-          const b = it.b
-          const selected = sel === b.name
-          const hot = !!selBranch && pathIds.includes(b.name)
-          const hit = filtering && hits.includes(b)
-          const inDrag = !!dragIds?.includes(b.name)
-          const kidsCount = kidsOf(b.name).length
-          return (
-            <BranchCard
-              key={it.id}
-              item={treeItem(b.name, treeLabel(b, now, kidsCount, isStale(b, now)), kidsCount ? !collapsed[b.name] : undefined)}
-              onFocus={onItemFocus}
-              b={b}
-              x={p.x}
-              y={p.y}
-              now={now}
-              color={branchColor(b)}
-              kidsCount={kidsCount}
-              parentName={b.parent}
-              isCollapsed={!!collapsed[b.name]}
-              selected={selected}
-              hot={hot}
-              hit={hit}
-              faded={faded(b.name)}
-              dimStrong={!!selBranch || filtering}
-              stale={isStale(b, now)}
-              aw={Math.min(100, (b.ahead / maxAhead) * 100)}
-              bw={Math.min(100, (b.behind / maxBehind) * 100)}
-              trans={inDrag ? "opacity .2s" : posTrans}
-              anim={intro ? `node-in .5s ${EASE} ${nodeDelay(it.id)}ms backwards` : selected ? "ping-ring .9s ease-out 1" : "none"}
-              grabbing={inDrag && !!nodeDrag?.moved}
-              lifted={inDrag}
-              onPointerDown={startNodeDrag}
-              onClick={onCardClick}
-              onToggle={toggleCollapsed}
-            />
-          )
-        })}
+          })}
         </div>
         {/* Shown when the repository has a single branch; it isn't part of the tree, so it stays outside it. */}
         {ghost && (
           <div onPointerDown={e => e.stopPropagation()} className="absolute" style={{ left: P[ghost.id].x, top: P[ghost.id].y, width: CARD_W }}>
             <div className="relative flex flex-col gap-2.5 rounded-xl border border-dashed border-(--borderColor-emphasis) bg-canvas/60 p-4" style={{ animation: `node-in .5s ${EASE} 200ms backwards` }}>
-              <span className="text-[13px] font-medium">No other branches yet</span>
-              <span className="text-xs text-pretty text-fg-muted">Branches you create from {defaultBranch} will appear here, connected to it.</span>
-              <div className="flex">
-                <Button size="sm" onClick={() => onNewBranch(defaultBranch)}>New branch</Button>
-              </div>
+              <span className="text-[13px] font-medium">No other branches</span>
+              <span className="text-xs text-pretty text-fg-muted">{defaultBranch} is the only branch in this repository.</span>
               <span className="absolute top-6 -left-1.5 size-2.5 rounded-full border-[1.5px] border-dashed border-fg-subtle bg-canvas" />
             </div>
           </div>
         )}
       </>
     )
-  }, [layout, orthogonal, dragging, dragIds, nodeDrag?.moved, selBranch, pathIds, ql, faded, intro, prefs.wireLabels, now, kidsOf, onStubClick, defaultBranch, onNewBranch, sel, filtering, hits, collapsed, maxAhead, maxBehind, startNodeDrag, onCardClick, toggleCollapsed, nav, activeId, onItemFocus, fullName])
+  }, [layout, orthogonal, dragging, dragIds, nodeDrag?.moved, selBranch, pathIds, ql, faded, intro, prefs.wireLabels, now, kidsOf, onStubClick, defaultBranch, sel, filtering, hits, collapsed, maxAhead, maxBehind, startNodeDrag, onCardClick, toggleCollapsed, nav, activeId, onItemFocus, fullName])
 
   // ---- owners menu -------------------------------------------------------------
   const owners = useMemo(() => {
@@ -814,7 +807,6 @@ export function TreeView(props: TreeViewProps) {
           onClose={() => { setSel(null); if (activeId) focusItem(activeId) }}
           onDelete={name => { setSel(null); props.onDelete(name) }}
           onSetParent={(name, parent) => { props.onSetParent(name, parent); refit() }}
-          onNewBranch={onNewBranch}
         />
       )}
 
@@ -931,7 +923,7 @@ export function Segmented<T extends string>({ value, options, onChange, size = "
             type="button"
             aria-pressed={on}
             onClick={() => onChange(v)}
-            className={cn("-my-px h-[calc(100%+2px)] cursor-pointer rounded-md border-0 bg-transparent text-fg-default", fullWidth && "min-w-0",on ? "p-0 font-semibold" : "p-1 font-normal", i === 0 ? "-ml-px" : "ml-px", i === options.length - 1 && "-mr-px")}
+            className={cn("-my-px h-[calc(100%+2px)] cursor-pointer rounded-md border-0 bg-transparent text-fg-default", fullWidth && "min-w-0", on ? "p-0 font-semibold" : "p-1 font-normal", i === 0 ? "-ml-px" : "ml-px", i === options.length - 1 && "-mr-px")}
           >
             <span
               className={cn(
@@ -987,13 +979,12 @@ function BranchCard(p: CardProps) {
 
   let chip: React.ReactNode = null
   if (hasChip(b)) {
-    const purple = merged
     chip = (
       <div
         className="flex h-7 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-xs whitespace-nowrap text-fg-default"
-        style={{ background: purple ? "var(--bgColor-done-muted)" : "var(--bgColor-attention-muted)", borderColor: purple ? "var(--borderColor-done-muted)" : "var(--borderColor-attention-muted)" }}
+        style={{ background: merged ? "var(--bgColor-done-muted)" : "var(--bgColor-attention-muted)", borderColor: merged ? "var(--borderColor-done-muted)" : "var(--borderColor-attention-muted)" }}
       >
-        <span className="flex flex-none" style={{ color: purple ? "var(--fgColor-done)" : "var(--fgColor-attention)" }}>{purple ? <GitMergeIcon size={12} /> : <AlertIcon size={12} />}</span>
+        <span className="flex flex-none" style={{ color: merged ? "var(--fgColor-done)" : "var(--fgColor-attention)" }}>{merged ? <GitMergeIcon size={12} /> : <AlertIcon size={12} />}</span>
         <span className="truncate">
           {merged ? `Merged into ${b.pr!.base} · safe to delete` : b.parentDeleted ? `Parent ${b.parentDeleted} was deleted` : "Parent inferred from commit history"}
         </span>
@@ -1019,7 +1010,7 @@ function BranchCard(p: CardProps) {
     >
       <div
         className="relative rounded-md border bg-canvas transition-[transform,box-shadow,border-color] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-0.5 hover:border-(--hover-border)!"
-        style={{ borderStyle: b.orphan || b.local ? "dashed" : "solid", borderColor: border, boxShadow: shadow, animation: p.anim, ["--hover-border" as string]: p.selected || p.hit ? "var(--fgColor-accent)" : "var(--borderColor-emphasis)" }}
+        style={{ borderStyle: b.orphan ? "dashed" : "solid", borderColor: border, boxShadow: shadow, animation: p.anim, ["--hover-border" as string]: p.selected || p.hit ? "var(--fgColor-accent)" : "var(--borderColor-emphasis)" }}
       >
         <div className={cn("flex h-10 min-w-0 items-center gap-2 rounded-t-[5px] border-b border-border-default pr-2.5 pl-3", p.selected ? "bg-accent-subtle" : "bg-canvas-subtle")}>
           <span className="flex flex-none" style={{ color: p.color }}><GitBranchIcon size={16} /></span>
@@ -1110,7 +1101,7 @@ function CopyLinkButton({ fullName, branch }: { fullName: string; branch: string
 }
 
 function SelectionPanel({
-  b, lineage, fullName, defaultBranch, branches, kidsOf, now, onClose, onDelete, onSetParent, onNewBranch,
+  b, lineage, fullName, defaultBranch, branches, kidsOf, now, onClose, onDelete, onSetParent,
 }: {
   b: Branch
   lineage: Branch[]
@@ -1122,7 +1113,6 @@ function SelectionPanel({
   onClose: () => void
   onDelete: (name: string) => void
   onSetParent: (name: string, parent: string | null) => void
-  onNewBranch: (from?: string) => void
 }) {
   const [reparenting, setReparenting] = useState(false)
   const kids = kidsOf(b.name)
@@ -1141,24 +1131,22 @@ function SelectionPanel({
   else if (b.orphan) warn = `This branch shares no commits with ${defaultBranch}, so behind/ahead and compare are unavailable.`
   else if (merged) warn = `PR #${b.pr!.number} was merged into ${b.pr!.base}. This branch is safe to delete.`
   else if (b.pr?.state === "closed") warn = `PR #${b.pr.number} was closed without merging.`
-  else if (b.local) warn = "Created in this browser only — it hasn’t been pushed to GitHub."
 
-  const kind = b.isDefault ? "Default branch" : b.orphan ? "Orphan branch" : b.local ? "Local branch" : merged ? `Merged · PR #${b.pr!.number}` : isStale(b, now) ? "Stale branch" : b.pr ? `Branch · PR #${b.pr.number}` : "Branch"
+  const kind = b.isDefault ? "Default branch" : b.orphan ? "Orphan branch" : merged ? `Merged · PR #${b.pr!.number}` : isStale(b, now) ? "Stale branch" : b.pr ? `Branch · PR #${b.pr.number}` : "Branch"
   const base = b.parent ?? defaultBranch
+  const pr = b.pr && prStyle(b.pr)
 
   const danger = buttonVariants({ variant: "destructive", className: "flex-1" })
   const primary = buttonVariants({ variant: "default", className: "flex-1" })
   const secondary = buttonVariants({ variant: "outline", className: "flex-1" })
 
   let cta: React.ReactNode
-  if (b.local || merged || (!b.isDefault && !b.orphan && b.ahead === 0 && !b.pr)) cta = <button type="button" className={danger} onClick={() => onDelete(b.name)}>Delete branch</button>
+  if (merged || (!b.isDefault && !b.orphan && b.ahead === 0 && !b.pr)) cta = <button type="button" className={danger} onClick={() => onDelete(b.name)}>Delete branch</button>
   else if (b.pr) cta = <a className={cn(primary, "hover:no-underline hover:text-fg-on-emphasis")} href={b.pr.url} target="_blank" rel="noreferrer">Open PR #{b.pr.number}</a>
   else if (b.isDefault || b.orphan) cta = <a className={cn(primary, "hover:no-underline hover:text-fg-on-emphasis")} href={githubUrl.tree(fullName, b.name)} target="_blank" rel="noreferrer">Browse code</a>
   else cta = <a className={cn(primary, "hover:no-underline hover:text-fg-on-emphasis")} href={githubUrl.compare(fullName, base, b.name, true)} target="_blank" rel="noreferrer">New pull request</a>
 
-  const cta2 = b.local ? (
-    <button type="button" className={secondary} onClick={() => onNewBranch(b.name)}>New branch from here</button>
-  ) : b.orphan || b.isDefault ? (
+  const cta2 = b.orphan || b.isDefault ? (
     <a className={cn(secondary, "hover:no-underline text-(--button-default-fgColor-rest) hover:text-(--button-default-fgColor-rest)")} href={githubUrl.commits(fullName, b.name)} target="_blank" rel="noreferrer">View commits</a>
   ) : (
     <a className={cn(secondary, "hover:no-underline text-(--button-default-fgColor-rest) hover:text-(--button-default-fgColor-rest)")} href={githubUrl.compare(fullName, base, b.name)} target="_blank" rel="noreferrer">Compare</a>
@@ -1178,8 +1166,7 @@ function SelectionPanel({
           <span className="font-mono text-sm font-semibold break-all">{b.name}</span>
         </div>
         <div className="flex flex-none items-center gap-0.5">
-          {/* Local branches exist only in this browser, so there's nothing to share. */}
-          {!b.local && <CopyLinkButton key={b.name} fullName={fullName} branch={b.name} />}
+          <CopyLinkButton key={b.name} fullName={fullName} branch={b.name} />
           <button type="button" onClick={onClose} title="Close" className="grid size-7 flex-none cursor-pointer place-content-center rounded-md text-fg-muted hover:bg-control-hover">
             <XIcon size={16} />
           </button>
@@ -1254,11 +1241,11 @@ function SelectionPanel({
               </a>
             </>
           )}
-          {b.pr && (
+          {b.pr && pr && (
             <>
               <span className="text-fg-muted">Pull request</span>
               <a href={b.pr.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 text-fg-default hover:text-fg-accent" title={b.pr.title}>
-                <span className="flex flex-none" style={{ color: prStyle(b.pr).color }}>{(() => { const I = prStyle(b.pr).Icon; return <I size={14} /> })()}</span>
+                <span className="flex flex-none" style={{ color: pr.color }}><pr.Icon size={14} /></span>
                 <span className="truncate">{b.pr.title}</span>
               </a>
             </>
@@ -1273,7 +1260,7 @@ function SelectionPanel({
   )
 }
 
-export function CheckState({ state }: { state: "success" | "failure" | "pending" }) {
+function CheckState({ state }: { state: "success" | "failure" | "pending" }) {
   if (state === "success") return <span className="flex text-fg-success"><CheckCircleFillIcon size={14} /></span>
   if (state === "failure") return <span className="flex text-fg-danger"><XCircleFillIcon size={14} /></span>
   return <span className="flex text-(--borderColor-attention-emphasis)"><DotFillIcon size={14} /></span>

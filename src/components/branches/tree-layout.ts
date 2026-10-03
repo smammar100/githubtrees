@@ -12,7 +12,7 @@ export type Item =
   | { kind: "ghost"; id: string; parent: string }
 
 export interface Pos { x: number; y: number; h: number; port: number }
-export interface Edge { from: string; to: string; item: Item }
+interface Edge { from: string; to: string; item: Item }
 export interface Layout {
   items: Item[]
   edges: Edge[]
@@ -21,7 +21,7 @@ export interface Layout {
 }
 
 export const hasChip = (b: Branch) => b.pr?.state === "merged" || !!b.parentDeleted || b.parentSource === "ancestry"
-export const cardHeight = (b: Branch) => 114 + (hasChip(b) ? 36 : 0)
+const cardHeight = (b: Branch) => 114 + (hasChip(b) ? 36 : 0)
 
 export function computeLayout(
   branches: Branch[],

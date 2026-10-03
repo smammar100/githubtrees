@@ -26,7 +26,7 @@ const PAGE = 20
 // Column widths measured from github.com/{repo}/branches
 const GRID = "grid grid-cols-[minmax(0,1fr)_70px] md:grid-cols-[minmax(0,1fr)_180px_150px_70px] lg:grid-cols-[minmax(0,1fr)_180px_125px_150px_113px_70px] items-center pl-4"
 
-interface Section { key: string; title: string; rows: Branch[]; more?: Tab; isDefault?: boolean }
+interface Section { key: string; title: string; rows: Branch[]; more?: Tab }
 
 export function ListView({
   fullName, defaultBranch, tab, setTab, now, sections, deleted, onDelete, onRestore, onShowInTree,
@@ -198,19 +198,18 @@ function Row({
         {isDeleted ? (
           <span className="truncate font-mono text-xs text-fg-muted line-through">{b.name}</span>
         ) : (
-          <a href={b.local ? undefined : githubUrl.tree(fullName, b.name)} target="_blank" rel="noreferrer" className="flex min-w-0 hover:no-underline">
+          <a href={githubUrl.tree(fullName, b.name)} target="_blank" rel="noreferrer" className="flex min-w-0 hover:no-underline">
             <BranchName name={b.name} />
           </a>
         )}
         <button type="button" onClick={copy} title="Copy branch name to clipboard" aria-label="Copy branch name to clipboard" className="grid size-7 flex-none cursor-pointer place-content-center rounded-md text-fg-muted hover:bg-control-hover">
           {copied ? <CheckIcon size={16} className="text-fg-success" /> : <CopyIcon size={16} />}
         </button>
-        {!b.local && !isDeleted && (
+        {!isDeleted && (
           <a href={githubUrl.rules(fullName, b.name)} target="_blank" rel="noreferrer" title="View rules" aria-label={`View rules for ${b.name}`} className="grid size-7 flex-none place-content-center rounded-md text-fg-muted hover:bg-control-hover hover:text-fg-muted">
             <ShieldCheckIcon size={16} />
           </a>
         )}
-        {b.local && <span className="rounded-full border border-accent-muted px-1.5 text-xs text-fg-accent">Local</span>}
       </span>
       <span className="hidden min-w-0 items-center gap-2 md:flex">
         <Avatar person={b.author} />
@@ -256,14 +255,10 @@ function Row({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52 rounded-xl p-2 shadow-floating ring-0">
             {!isDeleted && <DropdownMenuItem className="px-2 py-1.5" onClick={() => onShowInTree(b.name)}>Show in tree</DropdownMenuItem>}
-            {!b.local && (
-              <>
-                <DropdownMenuItem className="px-2 py-1.5" onClick={() => window.open(githubUrl.activity(fullName, b.name), "_blank")}>Activity</DropdownMenuItem>
-                <DropdownMenuItem className="px-2 py-1.5" onClick={() => window.open(githubUrl.commits(fullName, b.name), "_blank")}>View commits</DropdownMenuItem>
-                {!b.isDefault && !b.orphan && (
-                  <DropdownMenuItem className="px-2 py-1.5" onClick={() => window.open(githubUrl.compare(fullName, b.parent ?? defaultBranch, b.name), "_blank")}>Compare</DropdownMenuItem>
-                )}
-              </>
+            <DropdownMenuItem className="px-2 py-1.5" onClick={() => window.open(githubUrl.activity(fullName, b.name), "_blank")}>Activity</DropdownMenuItem>
+            <DropdownMenuItem className="px-2 py-1.5" onClick={() => window.open(githubUrl.commits(fullName, b.name), "_blank")}>View commits</DropdownMenuItem>
+            {!b.isDefault && !b.orphan && (
+              <DropdownMenuItem className="px-2 py-1.5" onClick={() => window.open(githubUrl.compare(fullName, b.parent ?? defaultBranch, b.name), "_blank")}>Compare</DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="px-2 py-1.5" onClick={copy}>Copy branch name</DropdownMenuItem>

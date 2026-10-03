@@ -11,7 +11,6 @@ import { usePrefs, useRepoStore } from "@/lib/use-repo-store"
 import { OpenRepoButton } from "@/components/open-repo-dialog"
 import { RepoHeader } from "@/components/repo-header"
 import { ListView } from "./list-view"
-import { NewBranchDialog } from "./new-branch-dialog"
 import { UnderlineTabs } from "./primitives"
 import { Segmented, TreeLegend, TreeView } from "./tree-view"
 
@@ -38,7 +37,6 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
   const [linked] = useState(() => (initialBranch ? resolveRef(initialBranch, graph.branches.map(b => b.name)) : null))
   const [focus, setFocus] = useState<{ name: string } | null>(linked ? { name: linked } : null)
   const [selected, setSelected] = useState<string | null>(linked)
-  const [dialog, setDialog] = useState<{ open: boolean; source: string }>({ open: false, source: defaultBranch })
   const [now, setNow] = useState(() => new Date(graph.fetchedAt).getTime())
 
   useEffect(() => {
@@ -61,7 +59,6 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
 
   // Keep ?view, ?tab and the selected ?branch in the URL so the address is always shareable
   // (and drop the one-shot ?fresh and ?pr).
-  const selectedIsLocal = !!(selected && store.localBranches.some(b => b.name === selected))
   useEffect(() => {
     const url = new URL(window.location.href)
     url.searchParams.delete("fresh")
@@ -70,20 +67,18 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
     else url.searchParams.set("view", view)
     if (tab === "overview") url.searchParams.delete("tab")
     else url.searchParams.set("tab", tab)
-    // Branches created in this browser only exist here, so they aren't put in shareable links.
-    const shared = view === "tree" && selected && !selectedIsLocal ? selected : null
+    const shared = view === "tree" ? selected : null
     if (shared) url.searchParams.set("branch", shared)
     else url.searchParams.delete("branch")
     window.history.replaceState(null, "", url.toString().replace(/%2F/gi, "/"))
     document.title = shared ? `${shared} · Branches · ${fullName}` : `Branches · ${fullName}`
-  }, [view, tab, selected, selectedIsLocal, fullName])
+  }, [view, tab, selected, fullName])
 
-  // ---- effective branch set: server data + local branches − deletions + manual parents ----
+  // ---- effective branch set: server data − deletions + manual parents ----
   const deleted = useMemo(() => new Set(store.deleted), [store.deleted])
-  const allRaw = useMemo(() => [...graph.branches, ...store.localBranches], [graph.branches, store.localBranches])
   const branches = useMemo(() => {
-    const rawByName = new Map(allRaw.map(b => [b.name, b]))
-    const live = allRaw.filter(b => !deleted.has(b.name))
+    const rawByName = new Map(graph.branches.map(b => [b.name, b]))
+    const live = graph.branches.filter(b => !deleted.has(b.name))
     const names = new Set(live.map(b => b.name))
     const out = live.map(b => {
       let { parent, parentSource, parentDeleted } = b
@@ -107,7 +102,7 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
       }
     }
     return out
-  }, [allRaw, deleted, store.parentOverrides, defaultBranch])
+  }, [graph.branches, deleted, store.parentOverrides, defaultBranch])
 
   const byName = useMemo(() => new Map(branches.map(b => [b.name, b])), [branches])
   const kidsMap = useMemo(() => {
@@ -117,23 +112,17 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
     return m
   }, [branches])
   const kidsOf = useCallback((name: string) => kidsMap.get(name) ?? [], [kidsMap])
-  const isYours = useCallback((b: Branch) => !!b.local || (!!viewer && b.author.login === viewer.login), [viewer])
+  const isYours = useCallback((b: Branch) => !!viewer && b.author.login === viewer.login, [viewer])
 
   // ---- actions ------------------------------------------------------------------
   const restore = useCallback((name: string) => update(s => ({ deleted: s.deleted.filter(n => n !== name) })), [update])
   const remove = useCallback(
     (name: string) => {
-      const b = allRaw.find(x => x.name === name)
-      if (!b || b.isDefault) return
-      if (b.local) {
-        update(s => ({ localBranches: s.localBranches.filter(x => x.name !== name) }))
-        toast(`Deleted ${name}`, { action: { label: "Undo", onClick: () => update(s => ({ localBranches: [...s.localBranches, b] })) } })
-        return
-      }
+      if (name === defaultBranch) return
       update(s => ({ deleted: [...s.deleted.filter(n => n !== name), name] }))
       toast(`Deleted ${name}`, { description: "Hidden in this browser only — the branch still exists on GitHub.", action: { label: "Undo", onClick: () => restore(name) } })
     },
-    [allRaw, update, restore],
+    [defaultBranch, update, restore],
   )
   const setParent = useCallback(
     (name: string, parent: string | null) =>
@@ -145,27 +134,11 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
       }),
     [update],
   )
-  const create = (name: string, source: string) => {
-    const src = byName.get(source)
-    if (!src) return
-    const at = new Date().toISOString()
-    const b: Branch = {
-      name, sha: src.sha, isDefault: false, isProtected: false,
-      parent: src.name, parentSource: "created", orphan: false,
-      ahead: src.isDefault ? 0 : src.ahead, behind: src.behind, updatedAt: at, forkedAt: at,
-      author: viewer ?? { login: "you", avatarUrl: null, isBot: false }, pr: null, checks: null, local: true,
-    }
-    update(s => ({ localBranches: [...s.localBranches, b] }))
-    setDialog(d => ({ ...d, open: false }))
-    toast(`Created ${name} from ${source}`, { description: "Saved in this browser — nothing was pushed to GitHub." })
-    setFocus({ name })
-  }
-  const openNew = useCallback((from?: string) => setDialog({ open: true, source: from ?? defaultBranch }), [defaultBranch])
 
   // ---- list sections ----------------------------------------------------------------
   const listSections = useCallback(
     (q: string) => {
-      const pool = allRaw
+      const pool = graph.branches
         .map(b => byName.get(b.name) ?? b)
         .filter(b => !q || b.name.toLowerCase().includes(q))
         .sort(byUpdated)
@@ -185,7 +158,7 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
       const title = tab === "yours" ? "Your branches" : tab === "active" ? "Active branches" : tab === "stale" ? "Stale branches" : "All branches"
       return [{ key: tab, title, rows }]
     },
-    [allRaw, byName, isYours, now, tab, viewer],
+    [graph.branches, byName, isYours, now, tab, viewer],
   )
 
   const tabs: [Tab, string][] = [["overview", "Overview"], ...(viewer ? [["yours", "Yours"] as [Tab, string]] : []), ["active", "Active"], ["stale", "Stale"], ["all", "All"]]
@@ -202,16 +175,14 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 border-b border-border-muted">
           <UnderlineTabs tabs={tabs} value={tab} onChange={setTab} />
-          <div>
-            <Segmented<View>
-              value={view}
-              onChange={v => { setView(v); if (v === "list") setFocus(null) }}
-              options={[
-                ["list", <><ListUnorderedIcon size={16} className="text-fg-muted" />List</>],
-                ["tree", <><WorkflowIcon size={16} className="text-fg-muted" />Tree</>],
-              ]}
-            />
-          </div>
+          <Segmented<View>
+            value={view}
+            onChange={v => { setView(v); if (v === "list") setFocus(null) }}
+            options={[
+              ["list", <><ListUnorderedIcon size={16} className="text-fg-muted" />List</>],
+              ["tree", <><WorkflowIcon size={16} className="text-fg-muted" />Tree</>],
+            ]}
+          />
         </div>
 
         {view === "list" ? (
@@ -244,35 +215,25 @@ export function BranchesPage({ graph, initialView, initialTab, initialBranch, no
             isYours={isYours}
             onDelete={remove}
             onSetParent={setParent}
-            onNewBranch={openNew}
             focus={focus}
             onSelect={setSelected}
           />
         )}
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted">
-          <span>
-            {graph.branches.length < graph.totalBranches ? `${graph.branches.length} of ${graph.totalBranches}` : graph.branches.length} branches from{" "}
-            {/* Underlined: inside a sentence, colour alone doesn't mark a link (WCAG 1.4.1). */}
-            <a href={graph.htmlUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">{fullName}</a> · graph built from {graph.commitsScanned.toLocaleString()} commits · fetched {relativeTime(graph.fetchedAt, now)}
-          </span>
-          <Link href={refreshHref} prefetch={false} className="inline-flex items-center gap-1">
-            <SyncIcon size={12} />Refresh
-          </Link>
-        </p>
+          <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted">
+            <span>
+              {graph.branches.length < graph.totalBranches ? `${graph.branches.length} of ${graph.totalBranches}` : graph.branches.length} branches from{" "}
+              {/* Underlined because, inside a sentence, colour alone doesn't mark a link (WCAG 1.4.1). */}
+              <a href={graph.htmlUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">{fullName}</a> · graph built from {graph.commitsScanned.toLocaleString()} commits · fetched {relativeTime(graph.fetchedAt, now)}
+            </span>
+            <Link href={refreshHref} prefetch={false} className="inline-flex items-center gap-1">
+              <SyncIcon size={12} />Refresh
+            </Link>
+          </p>
           {view === "tree" && <TreeLegend />}
         </div>
       </main>
-
-      <NewBranchDialog
-        open={dialog.open}
-        onOpenChange={open => setDialog(d => ({ ...d, open }))}
-        branches={branches}
-        defaultSource={dialog.source}
-        onCreate={create}
-      />
     </div>
   )
 }
-

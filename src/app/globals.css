@@ -79,7 +79,6 @@
   --shadow-floating: var(--shadow-floating-small);
   --shadow-floating-lg: var(--shadow-floating-medium);
 
-  --animate-node-in: node-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   --animate-view-in: view-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   --animate-panel-in: panel-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   --animate-fade-in: fade-in 0.3s ease backwards;

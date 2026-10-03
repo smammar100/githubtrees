@@ -89,7 +89,7 @@ async function pool<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]>
 // ─── Shared graph assembly ───────────────────────────────────────────────────
 
 /** A branch as read from GitHub, before its parent is worked out. */
-interface RawBranch extends Omit<Branch, "parent" | "parentSource" | "parentDeleted" | "local"> {
+interface RawBranch extends Omit<Branch, "parent" | "parentSource" | "parentDeleted"> {
   /** Commits on this branch that aren't on the default branch, oldest first. */
   aheadShas: string[]
 }
@@ -142,9 +142,9 @@ function graphOf(meta: RepoMeta, raw: RawBranch[]): RepoGraph {
   return { ...meta, branches, commitsScanned: raw.reduce((n, r) => n + r.aheadShas.length, 0), fetchedAt: new Date().toISOString() }
 }
 
-interface ApiBranch { name: string; commit: { sha: string }; protected: boolean }
+interface ApiBranch { name: string; commit: { sha: string } }
 
-/** Branches in name order, as github.com lists them. GraphQL can't see ruleset protection, so this stays on REST. */
+/** Branches in name order, as github.com lists them. */
 async function listBranches(full: string, max: number): Promise<ApiBranch[]> {
   const all: ApiBranch[] = []
   for (let page = 1; all.length < max; page++) {
@@ -310,7 +310,7 @@ async function buildGraphQL(owner: string, repo: string, include?: string): Prom
       const cmp = isDefault ? null : cmps[`c${i}`]
       const commits = cmp?.commits.nodes ?? []
       return [{
-        name: b.name, sha: head.oid, isDefault, isProtected: b.protected,
+        name: b.name, sha: head.oid, isDefault,
         orphan: !isDefault && !cmp, ahead: cmp?.aheadBy ?? 0, behind: cmp?.behindBy ?? 0, aheadShas: commits.map(c => c.oid),
         updatedAt: head.committedDate,
         // The branch's first commit of its own; a branch with none sits on the default branch at its head.
@@ -456,7 +456,7 @@ async function buildRest(owner: string, repo: string, include?: string): Promise
     if (!head) head = await gh<ApiCommit>(`/repos/${fullName}/commits/${b.commit.sha}`)
     const checks = authed ? await checksFor(fullName, b.commit.sha).catch(() => null) : null
     return {
-      name: b.name, sha: b.commit.sha, isDefault, isProtected: b.protected,
+      name: b.name, sha: b.commit.sha, isDefault,
       orphan, ahead, behind, aheadShas: commits.map(c => c.sha),
       updatedAt: commitDate(head),
       forkedAt: isDefault || orphan ? null : commits[0] ? commitDate(commits[0]) : commitDate(head),

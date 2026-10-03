@@ -50,8 +50,8 @@ export function BranchName({ name, muted, className, size = "md" }: { name: stri
   )
 }
 
-export function Counter({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <span className={cn("inline-block rounded-[20px] bg-neutral-muted px-1.5 py-0.5 text-xs leading-none font-semibold text-fg-default", className)}>{children}</span>
+export function Counter({ children }: { children: React.ReactNode }) {
+  return <span className="inline-block rounded-[20px] bg-neutral-muted px-1.5 py-0.5 text-xs leading-none font-semibold text-fg-default">{children}</span>
 }
 
 const PR_STYLE: Record<PullRequestRef["state"], { color: string; border: string; Icon: typeof GitPullRequestIcon; label: string }> = {
@@ -62,15 +62,14 @@ const PR_STYLE: Record<PullRequestRef["state"], { color: string; border: string;
 }
 export const prStyle = (pr: PullRequestRef) => PR_STYLE[pr.state]
 
-type Tone = "default" | "secondary" | "attention" | "accent"
+type Tone = "default" | "secondary" | "attention"
 const TONES: Record<Tone, [string, string]> = {
   default: ["var(--fgColor-default)", "var(--borderColor-default)"],
   secondary: ["var(--fgColor-muted)", "var(--borderColor-muted)"],
   attention: ["var(--fgColor-attention)", "var(--borderColor-attention-emphasis)"],
-  accent: ["var(--fgColor-accent)", "var(--borderColor-accent-muted)"],
 }
 
-/** Primer Label used on cards: Default / PR / Stale / Active / Orphan / Local */
+/** Primer Label used on cards: Default / PR / Stale / Active / Orphan */
 export function StatusLabel({ branch, stale }: { branch: Branch; stale: boolean }) {
   let color: string, border: string, text: string, Icon: typeof GitPullRequestIcon | null = null
   if (branch.isDefault) [color, border, text] = [...TONES.default, "Default"]
@@ -78,8 +77,7 @@ export function StatusLabel({ branch, stale }: { branch: Branch; stale: boolean 
   else if (branch.pr) {
     const s = prStyle(branch.pr)
     ;[color, border, text, Icon] = [s.color, s.border, `#${branch.pr.number}`, s.Icon]
-  } else if (branch.local) [color, border, text] = [...TONES.accent, "Local"]
-  else if (stale) [color, border, text] = [...TONES.attention, "Stale"]
+  } else if (stale) [color, border, text] = [...TONES.attention, "Stale"]
   else [color, border, text] = [...TONES.secondary, "Active"]
   return (
     <span
@@ -115,15 +113,13 @@ export function BranchPicker({
   value,
   onChange,
   exclude,
-  label = "Choose a branch",
-  className,
+  label,
 }: {
   branches: Branch[]
   value: string | null
   onChange: (name: string) => void
   exclude?: Set<string>
-  label?: string
-  className?: string
+  label: string
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState("")
@@ -133,12 +129,7 @@ export function BranchPicker({
   }, [branches, exclude, q])
   return (
     <Popover open={open} onOpenChange={o => { setOpen(o); if (!o) setQ("") }}>
-      <PopoverTrigger
-        className={cn(
-          "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border border-border-default bg-canvas-subtle px-3 text-sm font-medium text-(--button-default-fgColor-rest) shadow-resting hover:bg-canvas-inset",
-          className,
-        )}
-      >
+      <PopoverTrigger className="flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border border-border-default bg-canvas-subtle px-3 text-sm font-medium text-(--button-default-fgColor-rest) shadow-resting hover:bg-canvas-inset">
         <span className="text-fg-muted font-normal">{label}:</span>
         <span className="min-w-0 flex-1 truncate text-left font-mono text-[13px]">{value ?? "—"}</span>
         <TriangleDownIcon size={16} className="text-fg-muted" />

@@ -44,7 +44,7 @@ export interface Branch {
   behind: number
   /** ISO date of the head commit */
   updatedAt: string
-  /** ISO date of the fork point (merge-base, or parent tip for stacked branches) */
+  /** ISO date of the fork point (first commit not on the default branch, or parent tip for stacked branches) */
   forkedAt: string | null
   author: Person
   pr: PullRequestRef | null

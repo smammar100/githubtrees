@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // The stylesheet is small (~14 KB gzipped, see scripts/primer-theme.mjs), so sending it with the HTML beats a
+    // render-blocking request that competes with the JS downloads. Visitors mostly arrive fresh from shared links.
+    inlineCss: true,
+  },
   async headers() {
     return [
       {
